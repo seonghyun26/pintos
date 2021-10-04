@@ -28,6 +28,9 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+/* List of processes in sleep, need to wake up after given ticks */
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -92,6 +95,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -462,6 +466,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->wake_up_tick = 0;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -578,7 +583,51 @@ allocate_tid (void)
 
   return tid;
 }
-
+// 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+void
+thread_sleep(int64_t wake_up_tick)
+{
+  struct thread* cur;
+  enum intr_level current_intr_level;
+
+  current_intr_level = intr_disable();
+  cur = thread_current();
+
+  ASSERT( cur != idle_thread );
+  
+  cur->wake_up_tick = wake_up_tick;
+  list_insert_ordered(
+    &sleep_list,
+    &cur->elem,
+    cmp_thread_sleep_tick,
+    0
+  );
+  thread_block();
+
+  intr_set_level (current_intr_level);
+}
+
+void
+thread_wake_up(int64_t current_tick)
+{
+  struct thread* earliest_thread;
+  if ( !list_empty(&sleep_list) ) {
+    earliest_thread = list_entry( list_front (&sleep_list), struct thread, elem);
+    while ( earliest_thread->wake_up_tick <= current_tick ) {
+      list_pop_front(&sleep_list);
+      thread_unblock(earliest_thread);
+      if( list_empty(&sleep_list) ) break;
+      earliest_thread = list_entry( list_front (&sleep_list), struct thread, elem);
+    }
+  }
+}
+
+bool
+cmp_thread_sleep_tick(const struct list_elem *a, const struct list_elem *b,void* aux)
+{
+  return list_entry(a,struct thread,elem)->wake_up_tick < list_entry(b,struct thread,elem)->wake_up_tick;
+}
