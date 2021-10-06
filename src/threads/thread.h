@@ -146,4 +146,10 @@ bool cmp_thread_sleep_tick(const struct list_elem *a, const struct list_elem *b,
 
 /* Alarm function end   */ 
 
+/* Priority Scheduling function start */ 
+
+bool cmp_thread_priority(const struct list_elem *a, const struct list_elem *b,void* aux);
+
+/* Priority Scheduling function end */ 
+
 #endif /* threads/thread.h */

@@ -588,6 +588,8 @@ allocate_tid (void)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
+/* Alarm function start */
+
 void
 thread_sleep(int64_t wake_up_tick)
 {
@@ -631,3 +633,16 @@ cmp_thread_sleep_tick(const struct list_elem *a, const struct list_elem *b,void*
 {
   return list_entry(a,struct thread,elem)->wake_up_tick < list_entry(b,struct thread,elem)->wake_up_tick;
 }
+
+/* Alarm function end   */ 
+
+
+/* Priority Scheduling function start */ 
+
+bool
+cmp_thread_priority(const struct list_elem *a, const struct list_elem *b,void* aux)
+{
+  return list_entry(a,struct thread,elem)->priority < list_entry(b,struct thread,elem)->priority;
+}
+
+/* Priority Scheduling function end */ 
