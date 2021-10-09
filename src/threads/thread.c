@@ -204,6 +204,8 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+  printf("Thread Create Call\n");
+  check_current_thread_priority();
 
   return tid;
 }
@@ -225,12 +227,12 @@ thread_block (void)
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
-   This is an error if T is not blocked.  (Use thread_yield() to
-   make the running thread ready.)
+  This is an error if T is not blocked.  (Use thread_yield() to
+  make the running thread ready.)
 
-   This function does not preempt the running thread.  This can
-   be important: if the caller had disabled interrupts itself,
-   it may expect that it can atomically unblock a thread and
+  This function does not preempt the running thread.  This can
+  be important: if the caller had disabled interrupts itself,
+  it may expect that it can atomically unblock a thread and
    update other data. */
 void
 thread_unblock (struct thread *t) 
@@ -241,7 +243,10 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  
+  // list_push_back (&ready_list, &t->elem);
+  insert_thread_with_priority(t);
+  
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -312,7 +317,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    insert_thread_with_priority(cur); //list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -339,7 +344,10 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  // printf("--- set new priority to %d\n",new_priority);
   thread_current ()->priority = new_priority;
+  printf("Thread Set Priority Call\n");
+  check_current_thread_priority();
 }
 
 /* Returns the current thread's priority. */
@@ -594,23 +602,25 @@ void
 thread_sleep(int64_t wake_up_tick)
 {
   struct thread* cur;
-  enum intr_level current_intr_level;
+  enum intr_level old_level;
 
-  current_intr_level = intr_disable();
+  old_level = intr_disable();
   cur = thread_current();
 
   ASSERT( cur != idle_thread );
+  ASSERT( cur->status == THREAD_RUNNING );
   
   cur->wake_up_tick = wake_up_tick;
+  printf("- New Thread in Sleep List Priority: %d\n", cur->priority);
   list_insert_ordered(
     &sleep_list,
     &cur->elem,
     cmp_thread_sleep_tick,
-    0
+    NULL
   );
   thread_block();
 
-  intr_set_level (current_intr_level);
+  intr_set_level (old_level);
 }
 
 void
@@ -625,6 +635,8 @@ thread_wake_up(int64_t current_tick)
       if( list_empty(&sleep_list) ) break;
       earliest_thread = list_entry( list_front (&sleep_list), struct thread, elem);
     }
+    printf("Thread Wake Up Call\n");
+    check_current_thread_priority();
   }
 }
 
@@ -644,5 +656,40 @@ cmp_thread_priority(const struct list_elem *a, const struct list_elem *b,void* a
 {
   return list_entry(a,struct thread,elem)->priority < list_entry(b,struct thread,elem)->priority;
 }
+
+/* insert thread to ready list ordered.
+*/
+void
+insert_thread_with_priority(struct thread *t)
+{ 
+  printf("=====================================\n");
+  printf("-- Running thread priority: %d\n",thread_get_priority() );
+  printf("-- New Thread Priority: %d\n", t->priority);
+  if ( !list_empty(&ready_list))
+    printf("-- Ready List Front Thread priority: %d \n",list_entry( list_begin(&ready_list), struct thread, elem)->priority);
+  printf("=====================================\n\n");
+  list_insert_ordered(
+    &ready_list,
+    &t->elem,
+    cmp_thread_priority,
+    NULL
+  );
+}
+
+/* Compare Priority of Running thread and
+  thread in the readly list with the hightest priortiy
+*/
+void
+check_current_thread_priority(void)
+{
+  if ( 
+    !list_empty(&ready_list) &&
+    list_entry( list_begin(&ready_list), struct thread, elem)->priority > thread_get_priority() 
+  )
+  {
+    thread_yield();
+  }
+}
+
 
 /* Priority Scheduling function end */ 
