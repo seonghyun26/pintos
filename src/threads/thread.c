@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/fixed_point_real_arithmetic.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -357,10 +358,16 @@ thread_get_priority (void)
 }
 
 /* Sets the current thread's nice value to NICE. */
+// Sets the current thread’s nice value to new nice and 
+// recalculates the thread’s priority based on the new value 
+// (see Section B.2 [Calculating Priority], page 91). 
+// If the running thread no longer has the highest priority, yields.
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice) 
 {
-  /* Not yet implemented. */
+  struct thread *cur = thread_current();
+  cur->nice=nice;
+  thread_set_priority(PRI_MAX-(cur->x_divide_n(recent_cpu,4))-(nice*2));
 }
 
 /* Returns the current thread's nice value. */
@@ -368,7 +375,7 @@ int
 thread_get_nice (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -474,6 +481,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->wake_up_tick = 0;
+  //mlfq
+  t->nice = NICE_DEFAULT;
+  t->recent_cpu = RECENT_CPU_DEFAULT;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
