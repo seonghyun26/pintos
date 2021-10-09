@@ -24,6 +24,10 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+/* Multi-Level Feedback Queue */
+#define NICE_DEFAULT 0
+#define RECENT_CPU_DEFAULT 0
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -90,6 +94,9 @@ struct thread
    int priority;                       /* Priority. */
    struct list_elem allelem;           /* List element for all threads list. */
    int64_t wake_up_tick;                 /* Tick for this thread while sleeping */
+   // mlfq
+   int nice;
+   int recent_cpu;
 
     /* Shared between thread.c and synch.c. */
    struct list_elem elem;              /* List element. */
