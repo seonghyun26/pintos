@@ -27,6 +27,7 @@ typedef int tid_t;
 /* Multi-Level Feedback Queue */
 #define NICE_DEFAULT 0
 #define RECENT_CPU_DEFAULT 0
+#define LOAD_AVG_DEFAULT 0
 
 /* A kernel thread or user process.
 
@@ -160,5 +161,15 @@ void insert_thread_with_priority(struct thread *t);
 void check_current_thread_priority(void);
 
 /* Priority Scheduling function end */ 
+
+/* mlfq function start */
+
+void mlfqs_increment(void);
+
+int ready_threads(void);
+
+void thread_set_recent_cpu(struct thread* t,void* aux UNUSED);
+
+/* mlfq function end */
 
 #endif /* threads/thread.h */

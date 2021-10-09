@@ -62,6 +62,8 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+int load_avg;
+static long long mlfq_update_ticks;
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -103,6 +105,7 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+  mlfq_update_ticks=0;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -114,7 +117,7 @@ thread_start (void)
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
-
+  load_avg=LOAD_AVG_DEFAULT;
   /* Start preemptive thread scheduling. */
   intr_enable ();
 
@@ -138,6 +141,17 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
+
+  if(thread_mlfqs)
+  {
+    mlfq_update_ticks++;
+    if(mlfq_update_ticks % 10 == 0)
+    {
+      load_avg=x_multi_y(59*F/60,load_avg)+(1*F/60*load_avg);
+      thread_foreach(thread_set_recent_cpu,0);
+      mlfq_update_ticks=0;
+    }
+  }
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -367,7 +381,8 @@ thread_set_nice (int nice)
 {
   struct thread *cur = thread_current();
   cur->nice=nice;
-  thread_set_priority(PRI_MAX-(cur->x_divide_n(recent_cpu,4))-(nice*2));
+  thread_set_priority(PRI_MAX-(cur->recent_cpu/4)-(nice*2));
+  check_current_thread_priority();
 }
 
 /* Returns the current thread's nice value. */
@@ -382,18 +397,16 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return (load_avg+F/2)/F;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return (thread_current()->recent_cpu+F/2)/F;
 }
-
+//
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -647,7 +660,7 @@ thread_wake_up(int64_t current_tick)
 }
 
 bool
-cmp_thread_sleep_tick(const struct list_elem *a, const struct list_elem *b,void* aux)
+cmp_thread_sleep_tick(const struct list_elem *a, const struct list_elem *b,void* aux UNUSED)
 {
   return list_entry(a,struct thread,elem)->wake_up_tick < list_entry(b,struct thread,elem)->wake_up_tick;
 }
@@ -658,7 +671,7 @@ cmp_thread_sleep_tick(const struct list_elem *a, const struct list_elem *b,void*
 /* Priority Scheduling function start */ 
 
 bool
-cmp_thread_priority(const struct list_elem *a, const struct list_elem *b,void* aux)
+cmp_thread_priority(const struct list_elem *a, const struct list_elem *b,void* aux UNUSED)
 {
   return list_entry(a,struct thread,elem)->priority > list_entry(b,struct thread,elem)->priority;
 }
@@ -699,3 +712,40 @@ check_current_thread_priority(void)
 
 
 /* Priority Scheduling function end */ 
+
+
+/* mlfq function start */
+
+void
+mlfqs_increment(void)
+{
+  if(thread_current() != idle_thread)
+  {
+    thread_current()->recent_cpu++;
+  }
+}
+
+int
+ready_threads(void)
+{
+  struct list_elem *e;
+  int cnt = 0;
+  for (e = list_begin (&ready_list); e != list_end (&ready_list); e = list_next (e))
+  {
+    if(list_entry(e, struct thread, elem) != idle_thread)
+      cnt++;
+  }  
+  return cnt;
+}
+
+void
+thread_set_recent_cpu(struct thread* t,void* aux UNUSED)
+{
+  t->recent_cpu=x_multi_y((load_avg*2)/(load_avg*2+1*F),t->recent_cpu)+t->nice*F;
+  if(t->recent_cpu<0)
+  {
+    t->recent_cpu=0;
+  }
+}
+
+/* mlfq function end */
