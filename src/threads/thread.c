@@ -147,7 +147,7 @@ thread_tick (void)
     mlfq_update_ticks++;
     if(mlfq_update_ticks % 10 == 0)
     {
-      load_avg=x_multi_y(59*F/60,load_avg)+(1*F/60*load_avg);
+      load_avg=x_multi_y(59*F/60,load_avg)+(1*F/60*ready_threads());
       thread_foreach(thread_set_recent_cpu,0);
       mlfq_update_ticks=0;
     }
@@ -379,9 +379,11 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice) 
 {
+  old_level = intr_disable ();
   struct thread *cur = thread_current();
   cur->nice=nice;
   thread_set_priority(PRI_MAX-(cur->recent_cpu/4)-(nice*2));
+  intr_set_level (old_level);
   check_current_thread_priority();
 }
 
@@ -389,22 +391,27 @@ thread_set_nice (int nice)
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return thread_current()->nice;
+  old_level = intr_disable ();
+  int nice=thread_current()->nice;
+  intr_set_level (old_level);
+  return nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
 {
-  return (load_avg+F/2)/F;
+  return load_avg*100;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  return (thread_current()->recent_cpu+F/2)/F;
+  old_level = intr_disable ();
+  int cur_recent_cpu=thread_current()->recent_cpu;
+  intr_set_level (old_level);
+  return cur_recent_cpu*100;
 }
 //
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -455,7 +462,7 @@ kernel_thread (thread_func *function, void *aux)
   function (aux);       /* Execute the thread function. */
   thread_exit ();       /* If function() returns, kill the thread. */
 }
-
+//
 /* Returns the running thread. */
 struct thread *
 running_thread (void) 
