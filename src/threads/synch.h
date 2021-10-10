@@ -41,11 +41,19 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
+/* Priority Scheduling function start */ 
+
+bool cmp_semaphore_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
+
+/* Priority Scheduling function end */
+
 /* Optimization barrier.
 
-   The compiler will not reorder operations across an
-   optimization barrier.  See "Optimization Barriers" in the
-   reference guide for more information.*/
+  The compiler will not reorder operations across an
+  optimization barrier.  See "Optimization Barriers" in the
+  reference guide for more information.*/
 #define barrier() asm volatile ("" : : : "memory")
 
 #endif /* threads/synch.h */
+
+

@@ -7,12 +7,12 @@
 
 /* States in a thread's life cycle. */
 enum thread_status
-  {
+{
     THREAD_RUNNING,     /* Running thread. */
     THREAD_READY,       /* Not running but ready to run. */
     THREAD_BLOCKED,     /* Waiting for an event to trigger. */
     THREAD_DYING        /* About to be destroyed. */
-  };
+};
 
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
@@ -32,27 +32,27 @@ typedef int tid_t;
    thread's kernel stack, which grows downward from the top of
    the page (at offset 4 kB).  Here's an illustration:
 
-        4 kB +---------------------------------+
-             |          kernel stack           |
-             |                |                |
-             |                |                |
-             |                V                |
-             |         grows downward          |
-             |                                 |
-             |                                 |
-             |                                 |
-             |                                 |
-             |                                 |
-             |                                 |
-             |                                 |
-             |                                 |
-             +---------------------------------+
-             |              magic              |
-             |                :                |
-             |                :                |
-             |               name              |
-             |              status             |
-        0 kB +---------------------------------+
+      4 kB +---------------------------------+
+            |          kernel stack           |
+            |                |                |
+            |                |                |
+            |                V                |
+            |         grows downward          |
+            |                                 |
+            |                                 |
+            |                                 |
+            |                                 |
+            |                                 |
+            |                                 |
+            |                                 |
+            |                                 |
+            +---------------------------------+
+            |              magic              |
+            |                :                |
+            |                :                |
+            |               name              |
+            |              status             |
+      0 kB +---------------------------------+
 
    The upshot of this is twofold:
 
