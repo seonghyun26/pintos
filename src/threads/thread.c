@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #include "threads/fixed_point_real_arithmetic.h"
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -142,17 +143,17 @@ thread_tick (void)
   else
     kernel_ticks++;
 
-  // if(thread_mlfqs)
-  // {
-  //   mlfq_update_ticks++;
-  //   mlfqs_increment();
-  //   if(mlfq_update_ticks % 10 == 0)
-  //   {
-  //     load_avg=x_multi_y(59*F/60,load_avg)+(1*F/60*ready_threads());
-  //     thread_foreach(thread_set_recent_cpu,0);
-  //     mlfq_update_ticks=0;
-  //   }
-  // }
+  if(thread_mlfqs)
+  {
+    mlfq_update_ticks++;
+    mlfqs_increment();
+    if(mlfq_update_ticks % TIMER_FREQ == 0)
+    {
+      load_avg=x_multi_y(59*F/60,load_avg)+(1*F/60*ready_threads());
+      thread_foreach(thread_set_recent_cpu,0);
+      mlfq_update_ticks=0;
+    }
+  }
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -404,7 +405,7 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  return load_avg*100;
+  return round_nearest(load_avg*100);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -415,7 +416,7 @@ thread_get_recent_cpu (void)
   old_level = intr_disable ();
   int cur_recent_cpu=thread_current()->recent_cpu;
   intr_set_level (old_level);
-  return cur_recent_cpu*100;
+  return round_nearest(cur_recent_cpu*100);
 }
 //
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -692,12 +693,6 @@ cmp_thread_priority(const struct list_elem *a, const struct list_elem *b,void* a
 void
 insert_thread_with_priority(struct thread *t)
 { 
-  // printf("=====================================\n");
-  // printf("-- Running thread priority: %d\n",thread_get_priority() );
-  // printf("-- New Thread Priority: %d\n", t->priority);
-  // if ( !list_empty(&ready_list))
-  //   printf("-- Ready List Front Thread priority: %d \n",list_entry( list_begin(&ready_list), struct thread, elem)->priority);
-  // printf("=====================================\n\n");
   list_insert_ordered(
     &ready_list,
     &t->elem,
