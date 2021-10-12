@@ -142,17 +142,17 @@ thread_tick (void)
   else
     kernel_ticks++;
 
-  if(thread_mlfqs)
-  {
-    mlfq_update_ticks++;
-    mlfqs_increment();
-    if(mlfq_update_ticks % 10 == 0)
-    {
-      load_avg=x_multi_y(59*F/60,load_avg)+(1*F/60*ready_threads());
-      thread_foreach(thread_set_recent_cpu,0);
-      mlfq_update_ticks=0;
-    }
-  }
+  // if(thread_mlfqs)
+  // {
+  //   mlfq_update_ticks++;
+  //   mlfqs_increment();
+  //   if(mlfq_update_ticks % 10 == 0)
+  //   {
+  //     load_avg=x_multi_y(59*F/60,load_avg)+(1*F/60*ready_threads());
+  //     thread_foreach(thread_set_recent_cpu,0);
+  //     mlfq_update_ticks=0;
+  //   }
+  // }
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
