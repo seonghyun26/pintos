@@ -211,8 +211,24 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  struct thread* cur = thread_current();
+
+  // If holder for this lock exists, donate priority to others thread
+  if ( lock->holder != NULL ){
+    cur->wait_on_lock = lock;
+    list_insert_ordered(
+      &cur->donation_list,
+      &lock->holder->donation_elem,
+      cmp_thread_priority,
+      0
+    );
+    priority_donation();
+  }
+
   sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
+
+  lock->holder = cur;
+  cur->wait_on_lock = NULL;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -260,7 +276,7 @@ lock_held_by_current_thread (const struct lock *lock)
 
   return lock->holder == thread_current ();
 }
-
+// 
 /* One semaphore in a list. */
 struct semaphore_elem 
   {
@@ -388,5 +404,24 @@ cmp_semaphore_priority(const struct list_elem *a, const struct list_elem *b, voi
   ;
 }
 
+void
+priority_donation(void)
+{
+  int depth;
+  struct thread* t = thread_current();
+  struct lock* lock = t->wait_on_lock;
+
+  for ( depth = 0 ; depth < 8 ; depth++ ){
+    // if there is no lock a thread is waiting for, break
+    if ( lock == NULL) break;
+
+    // donate priority to the holder of the lock
+    else if ( lock->holder->priority < t->priority ) lock->holder->priority = t->priority ;
+
+    // Go deeper considering nested donation 
+    t = lock->holder;
+    lock = t->wait_on_lock;
+  }
+}
 
 /* Priority Scheduling function end */

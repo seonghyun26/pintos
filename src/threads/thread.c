@@ -346,6 +346,7 @@ thread_set_priority (int new_priority)
 {
   // printf("--- set new priority to %d\n",new_priority);
   thread_current ()->priority = new_priority;
+  thread_current ()->init_priority = new_priority;
   check_current_thread_priority();
 }
 
@@ -472,9 +473,11 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
+  t->init_priority = priority;
   t->priority = priority;
   t->wake_up_tick = 0;
   t->magic = THREAD_MAGIC;
+  list_init(&t->donation_list);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

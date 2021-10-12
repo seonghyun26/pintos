@@ -44,6 +44,7 @@ void cond_broadcast (struct condition *, struct lock *);
 /* Priority Scheduling function start */ 
 
 bool cmp_semaphore_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
+void priority_donation(void);
 
 /* Priority Scheduling function end */
 
