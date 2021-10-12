@@ -145,6 +145,7 @@ thread_tick (void)
   if(thread_mlfqs)
   {
     mlfq_update_ticks++;
+    mlfqs_increment();
     if(mlfq_update_ticks % 10 == 0)
     {
       load_avg=x_multi_y(59*F/60,load_avg)+(1*F/60*ready_threads());
@@ -379,6 +380,7 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice) 
 {
+  enum intr_level old_level;
   old_level = intr_disable ();
   struct thread *cur = thread_current();
   cur->nice=nice;
@@ -391,6 +393,7 @@ thread_set_nice (int nice)
 int
 thread_get_nice (void) 
 {
+  enum intr_level old_level;
   old_level = intr_disable ();
   int nice=thread_current()->nice;
   intr_set_level (old_level);
@@ -408,6 +411,7 @@ thread_get_load_avg (void)
 int
 thread_get_recent_cpu (void) 
 {
+  enum intr_level old_level;
   old_level = intr_disable ();
   int cur_recent_cpu=thread_current()->recent_cpu;
   intr_set_level (old_level);
@@ -753,6 +757,7 @@ thread_set_recent_cpu(struct thread* t,void* aux UNUSED)
   {
     t->recent_cpu=0;
   }
+  printf("@@ Thread id: %d -- %x",t->tid,t->recent_cpu);
 }
 
 /* mlfq function end */
