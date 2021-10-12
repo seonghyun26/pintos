@@ -347,6 +347,7 @@ thread_set_priority (int new_priority)
   // printf("--- set new priority to %d\n",new_priority);
   thread_current ()->priority = new_priority;
   thread_current ()->init_priority = new_priority;
+  check_donation_list_priority();
   check_current_thread_priority();
 }
 
@@ -690,5 +691,25 @@ check_current_thread_priority(void)
   }
 }
 
+void
+check_donation_list_priority(void)
+{
+  struct thread* cur = thread_current();
+  int highest_priority = PRI_MIN;
+
+  if ( !list_empty(&cur->donation_list) ){
+    list_sort(&cur->donation_list, cmp_thread_priority, 0);
+    highest_priority = list_entry(
+      list_front (&cur->donation_list),
+      struct thread,
+      donation_elem
+    )->priority;
+  }
+
+  cur->priority =
+    cur->priority >= highest_priority
+      ? cur->init_priority
+      : highest_priority;
+}
 
 /* Priority Scheduling function end */ 

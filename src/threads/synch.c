@@ -217,8 +217,8 @@ lock_acquire (struct lock *lock)
   if ( lock->holder != NULL ){
     cur->wait_on_lock = lock;
     list_insert_ordered(
-      &cur->donation_list,
-      &lock->holder->donation_elem,
+      &lock->holder->donation_list,
+      &cur->donation_elem,
       cmp_thread_priority,
       0
     );
@@ -262,6 +262,20 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  struct thread* cur = thread_current();
+  struct list_elem* e;
+
+  for (
+    e = list_begin(&cur->donation_list) ;
+    e != list_end(&cur->donation_list) ;
+    e = list_next(e)
+  ) {
+    struct thread* t = list_entry(e, struct thread, donation_elem);
+    if ( t->wait_on_lock == lock ) list_remove(&t->donation_elem);
+  }
+
+  check_donation_list_priority();
+  
   lock->holder = NULL;
   sema_up (&lock->semaphore);
 }
