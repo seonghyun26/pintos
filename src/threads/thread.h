@@ -166,6 +166,7 @@ bool cmp_thread_sleep_tick(const struct list_elem *a, const struct list_elem *b,
 bool cmp_thread_priority(const struct list_elem *a, const struct list_elem *b,void* aux);
 void insert_thread_with_priority(struct thread *t);
 void check_current_thread_priority(void);
+void check_donation_list_priority(void);
 
 /* Priority Scheduling function end */ 
 
