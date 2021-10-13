@@ -28,6 +28,9 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+/* List of processes in sleep, need to wake up after given ticks */
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -92,6 +95,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -200,6 +204,7 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+  check_current_thread_priority();
 
   return tid;
 }
@@ -221,12 +226,12 @@ thread_block (void)
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
-   This is an error if T is not blocked.  (Use thread_yield() to
-   make the running thread ready.)
+  This is an error if T is not blocked.  (Use thread_yield() to
+  make the running thread ready.)
 
-   This function does not preempt the running thread.  This can
-   be important: if the caller had disabled interrupts itself,
-   it may expect that it can atomically unblock a thread and
+  This function does not preempt the running thread.  This can
+  be important: if the caller had disabled interrupts itself,
+  it may expect that it can atomically unblock a thread and
    update other data. */
 void
 thread_unblock (struct thread *t) 
@@ -237,7 +242,10 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  
+  // list_push_back (&ready_list, &t->elem);
+  insert_thread_with_priority(t);
+
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -304,11 +312,12 @@ thread_yield (void)
   struct thread *cur = thread_current ();
   enum intr_level old_level;
   
+  // printf("Current thread wake up tick: %lld\n", cur->wake_up_tick);
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    insert_thread_with_priority(cur); //list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -335,7 +344,11 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  // printf("--- set new priority to %d\n",new_priority);
   thread_current ()->priority = new_priority;
+  thread_current ()->init_priority = new_priority;
+  check_donation_list_priority();
+  check_current_thread_priority();
 }
 
 /* Returns the current thread's priority. */
@@ -461,8 +474,11 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
+  t->init_priority = priority;
   t->priority = priority;
+  t->wake_up_tick = 0;
   t->magic = THREAD_MAGIC;
+  list_init(&t->donation_list);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -578,7 +594,123 @@ allocate_tid (void)
 
   return tid;
 }
-
+// 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+/* Alarm function start */
+
+void
+thread_sleep(int64_t wake_up_tick)
+{
+  struct thread* cur;
+  enum intr_level old_level;
+
+  old_level = intr_disable();
+  cur = thread_current();
+
+  ASSERT( cur != idle_thread );
+  
+  cur->wake_up_tick = wake_up_tick;
+  list_insert_ordered(
+    &sleep_list,
+    &cur->elem,
+    cmp_thread_sleep_tick,
+    NULL
+  );
+  thread_block();
+
+  intr_set_level (old_level);
+}
+
+void
+thread_wake_up(int64_t current_tick)
+{
+  struct thread* earliest_thread;
+
+  while (!list_empty(&sleep_list)){
+    earliest_thread = list_entry( list_front (&sleep_list), struct thread, elem);
+
+    if ( earliest_thread->wake_up_tick <= current_tick ){	
+      list_pop_front(&sleep_list);
+      thread_unblock (earliest_thread);	
+    }
+    else break;
+  }
+}
+
+bool
+cmp_thread_sleep_tick(const struct list_elem *a, const struct list_elem *b,void* aux)
+{
+  return list_entry(a,struct thread,elem)->wake_up_tick < list_entry(b,struct thread,elem)->wake_up_tick;
+}
+
+/* Alarm function end   */ 
+
+
+/* Priority Scheduling function start */ 
+
+bool
+cmp_thread_priority(const struct list_elem *a, const struct list_elem *b,void* aux)
+{
+  return list_entry(a,struct thread,elem)->priority > list_entry(b,struct thread,elem)->priority;
+}
+
+/* insert thread to ready list ordered.
+*/
+void
+insert_thread_with_priority(struct thread *t)
+{ 
+  // printf("=====================================\n");
+  // printf("-- Running thread priority: %d\n",thread_get_priority() );
+  // printf("-- New Thread Priority: %d\n", t->priority);
+  // if ( !list_empty(&ready_list))
+  //   printf("-- Ready List Front Thread priority: %d \n",list_entry( list_begin(&ready_list), struct thread, elem)->priority);
+  // printf("=====================================\n\n");
+  list_insert_ordered(
+    &ready_list,
+    &t->elem,
+    cmp_thread_priority,
+    0
+  );
+}
+
+/* Compare Priority of Running thread and
+  thread in the readly list with the hightest priortiy
+*/
+void
+check_current_thread_priority(void)
+{
+  if (!list_empty(&ready_list))
+  {
+    if (list_entry( list_front(&ready_list), struct thread, elem)->priority > thread_get_priority()) 
+    {
+      thread_yield();
+    }
+  }
+}
+
+void
+check_donation_list_priority(void)
+{
+  struct thread* cur = thread_current();
+  int highest_priority = PRI_MIN;
+
+  if ( !list_empty(&cur->donation_list) ){
+    list_sort(&cur->donation_list, cmp_thread_priority, 0);
+    highest_priority = list_entry(
+      list_front (&cur->donation_list),
+      struct thread,
+      donation_elem
+    )->priority;
+
+    cur->priority =
+      highest_priority > cur->init_priority 
+        ? highest_priority
+        : cur->init_priority;
+  } else cur->priority = cur->init_priority;
+
+}
+
+/* Priority Scheduling function end */ 
