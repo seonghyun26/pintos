@@ -24,6 +24,11 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+/* Multi-Level Feedback Queue */
+#define NICE_DEFAULT 0
+#define RECENT_CPU_DEFAULT 0
+#define LOAD_AVG_DEFAULT 0
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -91,9 +96,15 @@ struct thread
    int priority;                       /* Priority. */
    struct list_elem allelem;           /* List element for all threads list. */
    int64_t wake_up_tick;                 /* Tick for this thread while sleeping */
+
+   // mlfq
+   int nice;
+   int recent_cpu;
+
    struct lock* wait_on_lock;          /* Lock the thread is waiting for */
    struct list donation_list;          /* Donation list from threads */
    struct list_elem donation_elem;          /* Donation List element 8?
+
 
     /* Shared between thread.c and synch.c. */
    struct list_elem elem;              /* List element. */
@@ -158,5 +169,16 @@ void check_current_thread_priority(void);
 void check_donation_list_priority(void);
 
 /* Priority Scheduling function end */ 
+
+/* mlfq function start */
+
+void mlfqs_increment(void);
+int ready_threads(void);
+void thread_set_recent_cpu(struct thread* t,void* aux UNUSED);
+void thread_mlfqs_priority(struct thread* t,void* aux UNUSED);
+void calc_load_avg(void);
+void sort_ready_list(void);
+
+/* mlfq function end */
 
 #endif /* threads/thread.h */

@@ -216,13 +216,16 @@ lock_acquire (struct lock *lock)
   // If holder for this lock exists, donate priority to others thread
   if ( lock->holder != NULL ){
     cur->wait_on_lock = lock;
-    list_insert_ordered(
-      &lock->holder->donation_list,
-      &cur->donation_elem,
-      cmp_thread_priority,
-      0
-    );
-    priority_donation();
+    if(!thread_mlfqs)
+    {
+      list_insert_ordered(
+        &lock->holder->donation_list,
+        &cur->donation_elem,
+        cmp_thread_priority,
+        0
+      );
+      priority_donation();
+    }
   }
 
   sema_down (&lock->semaphore);
@@ -264,17 +267,18 @@ lock_release (struct lock *lock)
 
   struct thread* cur = thread_current();
   struct list_elem* e;
-
-  for (
-    e = list_begin(&cur->donation_list) ;
-    e != list_end(&cur->donation_list) ;
-    e = list_next(e)
-  ) {
-    struct thread* t = list_entry(e, struct thread, donation_elem);
-    if ( t->wait_on_lock == lock ) list_remove(&t->donation_elem);
+  
+  if(!thread_mlfqs) {
+    for (
+      e = list_begin(&cur->donation_list) ;
+      e != list_end(&cur->donation_list) ;
+      e = list_next(e)
+    ) {
+      struct thread* t = list_entry(e, struct thread, donation_elem);
+      if ( t->wait_on_lock == lock ) list_remove(&t->donation_elem);
+    }
+    check_donation_list_priority();
   }
-
-  check_donation_list_priority();
   
   lock->holder = NULL;
   sema_up (&lock->semaphore);
