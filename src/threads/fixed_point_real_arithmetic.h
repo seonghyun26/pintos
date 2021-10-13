@@ -1,8 +1,17 @@
+#ifndef FIXED_POINT
+#define FIXED_POINT
 #define F (1<<14)
 
+int convert_fp(int n);
 int x_multi_y(int x,int y);
 int x_divide_y(int x,int y);
 int round_nearest(int x);
+
+
+int convert_fp(int n)
+{
+    return n*F;
+}
 
 int x_multi_y(int x,int y)
 {
@@ -25,3 +34,5 @@ int round_nearest(int x)
         return (x-F/2)/F;
     }
 }
+
+#endif

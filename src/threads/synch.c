@@ -216,13 +216,16 @@ lock_acquire (struct lock *lock)
   // If holder for this lock exists, donate priority to others thread
   if ( lock->holder != NULL ){
     cur->wait_on_lock = lock;
-    list_insert_ordered(
-      &cur->donation_list,
-      &lock->holder->donation_elem,
-      cmp_thread_priority,
-      0
-    );
-    priority_donation();
+    if(!thread_mlfqs)
+    {
+      list_insert_ordered(
+        &cur->donation_list,
+        &lock->holder->donation_elem,
+        cmp_thread_priority,
+        0
+      );
+      priority_donation();
+    }
   }
 
   sema_down (&lock->semaphore);

@@ -172,10 +172,11 @@ void check_current_thread_priority(void);
 /* mlfq function start */
 
 void mlfqs_increment(void);
-
 int ready_threads(void);
-
 void thread_set_recent_cpu(struct thread* t,void* aux UNUSED);
+void thread_mlfqs_priority(struct thread* t,void* aux UNUSED);
+void calc_load_avg(void);
+void sort_ready_list(void);
 
 /* mlfq function end */
 
