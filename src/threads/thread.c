@@ -704,12 +704,13 @@ check_donation_list_priority(void)
       struct thread,
       donation_elem
     )->priority;
-  }
 
-  cur->priority =
-    cur->priority >= highest_priority
-      ? cur->init_priority
-      : highest_priority;
+    cur->priority =
+      highest_priority > cur->init_priority 
+        ? highest_priority
+        : cur->init_priority;
+  } else cur->priority = cur->init_priority;
+
 }
 
 /* Priority Scheduling function end */ 
