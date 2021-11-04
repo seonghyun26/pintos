@@ -22,24 +22,37 @@ static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
 /* Starts a new thread running a user program loaded from
-   FILENAME.  The new thread may be scheduled (and may even exit)
-   before process_execute() returns.  Returns the new process's
-   thread id, or TID_ERROR if the thread cannot be created. */
+  FILENAME.  The new thread may be scheduled (and may even exit)
+  before process_execute() returns.  Returns the new process's
+  thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy;
   tid_t tid;
 
+  /* <-- Project 2 : Argument Passing Start --> */
+
+  char *file_name_ = file_name;
+  char* argv0;
+  char* dummy_argv_ptr;
+
+  char* dummy_file_name = malloc(sizeof(char)*(strlen(file_name_)+1));
+  strlcpy(dummy_file_name, file_name_, strlen(file_name_)+1);
+  argv0 = strtok_r(dummy_file_name," ",&dummy_argv_ptr);
+  printf("\n< --- Thread created with name '%s' --- >\n", argv0);
+
+  /* <-- Project 2 : Argument Passing End --> */
+
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
+  strlcpy (fn_copy, file_name_, PGSIZE);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (argv0, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -59,7 +72,82 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  
+  /* <-- Project 2 : Argument Passing Start --> */
+  char* argv[4];
+  char* save_argv_ptr;
+  char* next_argv_ptr;
+  int argc = 0;
+  int i;
+  
+  // Parse Arguments and saved in argv[]
+  do {
+    save_argv_ptr = strtok_r(file_name," ",&next_argv_ptr);
+    argv[argc] = save_argv_ptr;
+    argc++;
+    file_name = next_argv_ptr;
+  } while ( save_argv_ptr != NULL );
+
+  for(i = 0 ; i < argc ; i++)
+  {
+    printf("- argv[%d]: '%s' \n", i, argv[i]);
+  }
+  printf("\n< --- %d arguments(with null) saved --- >\n\n", argc);
+
+
+  success = load (argv[0], &if_.eip, &if_.esp); 
+  // success = load (file_name, &if_.eip, &if_.esp); 
+  printf("\n< --- load sucess: %d --- >\n", success);
+
+  printf("esp: %d\n", if_.esp);
+
+  
+  /* Push Arguments into stack
+    - each argv[] content in reverse
+    - word-align uint8_t
+    - address of each argv[] in reverse
+    - address of argv
+    - argc
+    - return address 0
+  */
+
+  void** sp = &if_.esp;
+  int size;
+  // push argv value
+  printf("\n<--- Saving %d argv in stack --->\n", argc - 1);
+  for ( i = argc - 2 ; i >= 0 ; i-- ){
+    size = strlen(argv[i]) + 1;
+    printf("- Saving argv[%d] '%s', size: %d, at sp: %x\n", i, argv[i], size, *sp);
+    *sp -= size;
+    strlcpy(*sp, argv[i], size);
+  }
+
+  // push word-align
+  while ( (PHYS_BASE - *sp) % 4 != 0 ) {
+    *sp -= sizeof(uint8_t);
+  }
+
+  // push argv address
+  *sp -= 4;
+  *(uint32_t *)*sp = NULL;
+  for ( i = argc - 1 ; i >= 0 ; i-- ){
+    *sp -= sizeof(uint32_t);
+    **(uint32_t **)sp = argv[i];
+    // printf("%c", **sp);
+  }
+
+  // push argc
+  *sp -= sizeof(int);
+  **(uint32_t **)sp = argc;
+
+  // push return address
+  *sp -= 4;
+  **(uint32_t **)sp = 0;
+  
+  // hex_dump(if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
+  hex_dump(*sp, *sp, 100, 1);
+  /* <-- Project 2 : Argument Passing End --> */
+
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -67,28 +155,30 @@ start_process (void *file_name_)
     thread_exit ();
 
   /* Start the user process by simulating a return from an
-     interrupt, implemented by intr_exit (in
-     threads/intr-stubs.S).  Because intr_exit takes all of its
-     arguments on the stack in the form of a `struct intr_frame',
-     we just point the stack pointer (%esp) to our stack frame
-     and jump to it. */
+    interrupt, implemented by intr_exit (in
+    threads/intr-stubs.S).  Because intr_exit takes all of its
+    arguments on the stack in the form of a `struct intr_frame',
+    we just point the stack pointer (%esp) to our stack frame
+    and jump to it. */
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
-   it was terminated by the kernel (i.e. killed due to an
-   exception), returns -1.  If TID is invalid or if it was not a
-   child of the calling process, or if process_wait() has already
-   been successfully called for the given TID, returns -1
-   immediately, without waiting.
+  it was terminated by the kernel (i.e. killed due to an
+  exception), returns -1.  If TID is invalid or if it was not a
+  child of the calling process, or if process_wait() has already
+  been successfully called for the given TID, returns -1
+  immediately, without waiting.
 
-   This function will be implemented in problem 2-2.  For now, it
-   does nothing. */
+  This function will be implemented in problem 2-2.  For now, it
+  does nothing. */
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  while(true){
+    thread_yield();
+  }
 }
 
 /* Free the current process's resources. */
@@ -104,12 +194,12 @@ process_exit (void)
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set
-         cur->pagedir to NULL before switching page directories,
-         so that a timer interrupt can't switch back to the
-         process page directory.  We must activate the base page
-         directory before destroying the process's page
-         directory, or our active page directory will be one
-         that's been freed (and cleared). */
+        cur->pagedir to NULL before switching page directories,
+        so that a timer interrupt can't switch back to the
+        process page directory.  We must activate the base page
+        directory before destroying the process's page
+        directory, or our active page directory will be one
+        that's been freed (and cleared). */
       cur->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
@@ -117,8 +207,8 @@ process_exit (void)
 }
 
 /* Sets up the CPU for running user code in the current
-   thread.
-   This function is called on every context switch. */
+  thread.
+  This function is called on every context switch. */
 void
 process_activate (void)
 {
@@ -131,7 +221,7 @@ process_activate (void)
      interrupts. */
   tss_update ();
 }
-
+// 
 /* We load ELF binaries.  The following definitions are taken
    from the ELF specification, [ELF1], more-or-less verbatim.  */
 
@@ -166,8 +256,8 @@ struct Elf32_Ehdr
   };
 
 /* Program header.  See [ELF1] 2-2 to 2-4.
-   There are e_phnum of these, starting at file offset e_phoff
-   (see [ELF1] 1-6). */
+  There are e_phnum of these, starting at file offset e_phoff
+  (see [ELF1] 1-6). */
 struct Elf32_Phdr
   {
     Elf32_Word p_type;
@@ -215,12 +305,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
   bool success = false;
   int i;
 
+  printf("ASDF1\n");
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
     goto done;
   process_activate ();
 
+  printf("ASDF2\n");
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL) 
@@ -229,6 +321,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done; 
     }
 
+  printf("ASDF3\n");
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -242,6 +335,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done; 
     }
 
+  printf("ASDF4\n");
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
   for (i = 0; i < ehdr.e_phnum; i++) 
@@ -269,6 +363,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
         case PT_SHLIB:
           goto done;
         case PT_LOAD:
+          printf("ASDF5\n");
           if (validate_segment (&phdr, file)) 
             {
               bool writable = (phdr.p_flags & PF_W) != 0;
@@ -296,13 +391,17 @@ load (const char *file_name, void (**eip) (void), void **esp)
                 goto done;
             }
           else
-            goto done;
+            {
+              printf("ASDF6\n");
+              goto done;
+            }
           break;
         }
     }
-
+  
   /* Set up stack. */
   if (!setup_stack (esp))
+    printf("HERE");
     goto done;
 
   /* Start address. */
@@ -310,12 +409,13 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   success = true;
 
- done:
+done:
   /* We arrive here whether the load is successful or not. */
+  printf("THERE");
   file_close (file);
   return success;
 }
-
+// 
 /* load() helpers. */
 
 static bool install_page (void *upage, void *kpage, bool writable);
@@ -329,38 +429,47 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
   if ((phdr->p_offset & PGMASK) != (phdr->p_vaddr & PGMASK)) 
     return false; 
 
+  printf("\nQWER1\n");
   /* p_offset must point within FILE. */
   if (phdr->p_offset > (Elf32_Off) file_length (file)) 
     return false;
-
+  
+  printf("QWER2\n");
   /* p_memsz must be at least as big as p_filesz. */
   if (phdr->p_memsz < phdr->p_filesz) 
     return false; 
 
+  printf("QWER3\n");
   /* The segment must not be empty. */
   if (phdr->p_memsz == 0)
     return false;
-  
+
+  printf("QWER4\n");
   /* The virtual memory region must both start and end within the
      user address space range. */
   if (!is_user_vaddr ((void *) phdr->p_vaddr))
     return false;
+  printf("QWER5\n");
   if (!is_user_vaddr ((void *) (phdr->p_vaddr + phdr->p_memsz)))
     return false;
-
+  printf("QWER6\n");
   /* The region cannot "wrap around" across the kernel virtual
      address space. */
+  printf("QWER7\n");
   if (phdr->p_vaddr + phdr->p_memsz < phdr->p_vaddr)
     return false;
 
+  printf("QWER8\n");
   /* Disallow mapping page 0.
      Not only is it a bad idea to map page 0, but if we allowed
      it then user code that passed a null pointer to system calls
      could quite likely panic the kernel by way of null pointer
      assertions in memcpy(), etc. */
-  if (phdr->p_vaddr < PGSIZE)
+  printf("Numbers: %d, %d\n", phdr->p_offset, PGSIZE);
+  if (phdr->p_offset < PGSIZE)
     return false;
 
+  printf("QWER9\n");
   /* It's okay. */
   return true;
 }
@@ -431,6 +540,7 @@ setup_stack (void **esp)
 {
   uint8_t *kpage;
   bool success = false;
+  printf("setup stack called!\n");
 
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
@@ -440,6 +550,7 @@ setup_stack (void **esp)
         *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
+      
     }
   return success;
 }

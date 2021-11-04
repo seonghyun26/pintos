@@ -103,10 +103,10 @@ struct thread
 
    struct lock* wait_on_lock;          /* Lock the thread is waiting for */
    struct list donation_list;          /* Donation list from threads */
-   struct list_elem donation_elem;          /* Donation List element 8?
+   struct list_elem donation_elem;          /* Donation List element 8? */
 
 
-    /* Shared between thread.c and synch.c. */
+   /* Shared between thread.c and synch.c. */
    struct list_elem elem;              /* List element. */
 
 #ifdef USERPROG
