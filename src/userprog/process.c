@@ -39,7 +39,7 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
 
-  /* <-- Project2 : Argument Parsing Start --> */
+  /* <-- Project2 : Argument Passing Start --> */
 
   char* dummy_file_name = palloc_get_page(0);
   strlcpy(dummy_file_name, file_name, strlen(file_name)+1);
@@ -48,7 +48,7 @@ process_execute (const char *file_name)
   file_name_ = strtok_r(dummy_file_name, " ", &dummy_ptr);
   // printf("%s\n",file_name_);
 
-  /* <-- Project2 : Argument Parsing End --> */
+  /* <-- Project2 : Argument Passing End --> */
 
 
   /* Create a new thread to execute FILE_NAME. */
@@ -59,7 +59,7 @@ process_execute (const char *file_name)
 }
 
 
-/* <-- Project2 : Argument Parsing Start --> */
+/* <-- Project2 : Argument Passing Start --> */
 
 void stack_argument(char **parse, int argc, void **rsp)
 {
@@ -105,7 +105,7 @@ void stack_argument(char **parse, int argc, void **rsp)
     **(uint32_t **)rsp = 0;
 }
 
-/* <-- Project2 : Argument Parsing End --> */
+/* <-- Project2 : Argument Passing End --> */
 
 
 /* A thread function that loads a user process and starts it
@@ -118,7 +118,7 @@ start_process (void *file_name_)
   bool success;
 
 
-  /* <-- Project2 : Argument Parsing Start --> */
+  /* <-- Project2 : Argument Passing Start --> */
 
   char* argv[128];
   int argc = 1;
@@ -139,7 +139,7 @@ start_process (void *file_name_)
   //   printf(" - argv %d : %s\n", i, argv[i] );
   // }
 
-  /* <-- Project2 : Argument Parsing End --> */
+  /* <-- Project2 : Argument Passing End --> */
 
 
   /* Initialize interrupt frame and load executable. */
@@ -150,13 +150,13 @@ start_process (void *file_name_)
   success = load (argv[0], &if_.eip, &if_.esp);
 
 
-  /* <-- Project2 : Argument Parsing Start --> */
+  /* <-- Project2 : Argument Passing Start --> */
 
   // printf("-- success: %d --\n", success);
   stack_argument(argv, argc, &if_.esp);
   hex_dump((int)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
 
-  /* <-- Project2 : Argument Parsing End --> */
+  /* <-- Project2 : Argument Passing End --> */
 
 
   /* If load failed, quit. */
