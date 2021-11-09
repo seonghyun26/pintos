@@ -204,6 +204,27 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
+#ifdef USERPROG
+  /* <-- Process hierarchy for System Call Start --> */
+  t->parent_thread = thread_current();
+  t->program_loaded = 0;
+  t->is_end = 0;
+  sema_init(&t->sema_exit,0);
+  sema_init(&t->sema_load,0);
+  list_init(&t->child_list);
+  list_push_back(&thread_current()->child_list,&t->child_elem);
+  /* <-- Process hierarchy for System Call End --> */
+
+  /* <-- Project 2 : File Descriptor Table for System Call Start --> */
+  t->fd_count=2;
+  int i;
+  for( i = 0; i < 128; i ++)
+  {
+    t->fd[i] = NULL;
+  }
+  /* <-- Project 2 : File Descriptor Table for System Call Start --> */
+#endif
+
   /* Add to run queue. */
   thread_unblock (t);
   check_current_thread_priority();
@@ -296,12 +317,19 @@ thread_exit (void)
   process_exit ();
 #endif
 
+
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
-  list_remove (&thread_current()->allelem);
-  thread_current ()->status = THREAD_DYING;
+  struct thread *cur = thread_current();
+  list_remove (&cur->allelem);
+#ifdef USERPROG
+  cur->is_end=1;
+  sema_up(&cur->sema_exit);
+#endif
+  // printf("SSIBAL GASAKKIYA JAEBAL SALRYEOJUSEM\n");
+  cur->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
 }
@@ -514,6 +542,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
   list_init(&t->donation_list);
 
+  /* <-- Process hierarchy for System Call Start --> */
+  list_init(&t->child_list);
+  /* <-- Process hierarchy for System Call End --> */
+
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -585,10 +617,13 @@ thread_schedule_tail (struct thread *prev)
      pull out the rug under itself.  (We don't free
      initial_thread because its memory was not obtained via
      palloc().) */
+
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
+#ifndef USERPROG
       palloc_free_page (prev);
+#endif
     }
 }
 
@@ -811,3 +846,29 @@ void sort_ready_list(void)
 }
 
 /* mlfq function end */
+
+/* <-- Process hierarchy for System Call Start --> */
+
+struct thread *get_child_process (tid_t pid)
+{
+  struct thread *cur = running_thread();
+  if(!is_thread(cur)) return NULL;
+  struct list_elem *e;
+  for (e = list_begin (&cur->child_list); e != list_end (&cur->child_list); e = list_next (e))
+  {
+    struct thread *t = list_entry (e, struct thread, child_elem);
+    if(t->tid == pid) return t;
+  }
+  return NULL;
+}
+
+void remove_child_process(struct thread *cp)
+{
+  struct thread *cur = running_thread();
+  if(!is_thread(cur)) return;
+  if(cp->parent_thread!=cur) return;
+  list_remove(&cp->child_elem);
+  palloc_free_page (cp);
+}
+
+/* <-- Process hierarchy for System Call End --> */

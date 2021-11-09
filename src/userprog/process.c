@@ -40,21 +40,23 @@ process_execute (const char *file_name)
 
 
   /* <-- Project2 : Argument Passing Start --> */
-
-  char* dummy_file_name = palloc_get_page(0);
-  strlcpy(dummy_file_name, file_name, strlen(file_name)+1);
-  char* file_name_;
-  char *dummy_ptr = NULL;
-  file_name_ = strtok_r(dummy_file_name, " ", &dummy_ptr);
-  // printf("%s\n",file_name_);
+  int i;
+  char dummy_name[128];
+  strlcpy(dummy_name, file_name, strlen(file_name) + 1);
+  for (i=0; dummy_name[i]!='\0' && dummy_name[i] != ' '; i++);
+    dummy_name[i] = '\0';
 
   /* <-- Project2 : Argument Passing End --> */
 
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name_, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (dummy_name, PRI_DEFAULT, start_process, fn_copy);
+  
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+  {
+    palloc_free_page (fn_copy);
+  }
+
   return tid;
 }
 
@@ -63,7 +65,7 @@ process_execute (const char *file_name)
 
 void stack_argument(char **parse, int argc, void **rsp)
 {
-    int argv_address[16];
+    int argv_address[128];
     int i, j;
 
     // Save argv on stack and record argv address
@@ -73,6 +75,7 @@ void stack_argument(char **parse, int argc, void **rsp)
         **(char **)rsp = parse[i][j];
       }
       argv_address[i] = (int)*rsp;
+      // printf("%s Saved at %x \n", parse[i], argv_address[i]);
       // printf("argc address: %x\n", argv_address[i]);
     }
 
@@ -98,7 +101,7 @@ void stack_argument(char **parse, int argc, void **rsp)
 
     // Save argc
     *rsp -= 4;
-    **(int **)rsp = argc;
+    **(int **)rsp = argc - 1;
 
     // Save Return address 0
     *rsp = (uint32_t *)*rsp - 1;
@@ -138,7 +141,6 @@ start_process (void *file_name_)
   // for( i = 0 ; i < argc; i++){
   //   printf(" - argv %d : %s\n", i, argv[i] );
   // }
-
   /* <-- Project2 : Argument Passing End --> */
 
 
@@ -153,17 +155,26 @@ start_process (void *file_name_)
   /* <-- Project2 : Argument Passing Start --> */
 
   // printf("-- success: %d --\n", success);
-  stack_argument(argv, argc, &if_.esp);
-  hex_dump((int)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
+  if ( success )  stack_argument(argv, argc, &if_.esp);
+  // hex_dump((int)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
 
   /* <-- Project2 : Argument Passing End --> */
 
+  /* <-- Process hierarchy for System Call Start --> */
+  struct thread *cur = thread_current();
+  cur->program_loaded = success;
+  sema_up(&cur->sema_load);
+  /* <-- Process hierarchy for System Call End --> */
 
   /* If load failed, quit. */
   palloc_free_page (argv[0]);
   if (!success) 
-    thread_exit ();
-
+  {
+    // cur->program_loaded = 0;
+    exit(-1);
+  }
+  // cur->program_loaded = 1;
+  
   /* Start the user process by simulating a return from an
     interrupt, implemented by intr_exit (in
     threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -184,13 +195,14 @@ start_process (void *file_name_)
   This function will be implemented in problem 2-2.  For now, it
   does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  while(1){};
-  // int i;
-  // for( i = 0 ; i < 1000000000 ; i++ ){
-  // }
-  // return -1;
+  struct thread* t = get_child_process(child_tid);
+  if(t == NULL || t == thread_current()) return -1;
+  sema_down(&t->sema_exit);
+  int status = t->exit_status;
+  remove_child_process(t);
+  return status;
 }
 
 /* Free the current process's resources. */
@@ -324,6 +336,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
+  // printf("File name: %s\n", file_name);
   file = filesys_open (file_name);
   if (file == NULL) 
     {

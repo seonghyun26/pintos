@@ -68,14 +68,14 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
   {
-    // list_push_back (&sema->waiters, &thread_current ()->elem);
+    list_push_back (&sema->waiters, &thread_current ()->elem);
     // Insert into Semaphore waiters list considering priority
-    list_insert_ordered(
-      &sema->waiters,
-      &thread_current()->elem,
-      cmp_thread_priority,
-      0
-    );
+    // list_insert_ordered(
+    //   &sema->waiters,
+    //   &thread_current()->elem,
+    //   cmp_thread_priority,
+    //   0
+    // );
     thread_block ();
   }
   sema->value--;
@@ -404,7 +404,7 @@ cond_broadcast (struct condition *cond, struct lock *lock)
 /* Priority Scheduling function start */
 
 bool
-cmp_semaphore_priority(const struct list_elem *a, const struct list_elem *b, void *aux)
+cmp_semaphore_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
 {
   struct semaphore_elem* a_sema_elem = list_entry(a, struct semaphore_elem, elem);
   struct semaphore_elem* b_sema_elem = list_entry(b, struct semaphore_elem, elem);

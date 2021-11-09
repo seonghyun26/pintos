@@ -4,6 +4,10 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+/* Project 2 */
+#include "threads/synch.h"
+
+#include "filesys/file.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -28,6 +32,7 @@ typedef int tid_t;
 #define NICE_DEFAULT 0
 #define RECENT_CPU_DEFAULT 0
 #define LOAD_AVG_DEFAULT 0
+
 
 /* A kernel thread or user process.
 
@@ -105,13 +110,29 @@ struct thread
    struct list donation_list;          /* Donation list from threads */
    struct list_elem donation_elem;          /* Donation List element */
 
-
     /* Shared between thread.c and synch.c. */
    struct list_elem elem;              /* List element. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
    uint32_t *pagedir;                  /* Page directory. */
+
+   /* <-- Project 2 : Process hierarchy for System Call Start --> */
+   struct thread* parent_thread;
+   struct list child_list;
+   struct list_elem child_elem;
+
+   bool program_loaded; // process memory loaded ?
+   int is_end; // is this process ended ?
+   int exit_status; // exit status from system call
+   struct semaphore sema_exit; // semaphore for exit
+   struct semaphore sema_load; // semaphore for load
+   /* <-- Project 2 : Process hierarchy for System Call End --> */
+
+   /* <-- Project 2 : File Descriptor Table for System Call Start --> */
+   int fd_count;
+   struct file* fd[128];
+   /* <-- Project 2 : File Descriptor Table for System Call Start --> */
 #endif
 
     /* Owned by thread.c. */
@@ -180,5 +201,10 @@ void calc_load_avg(void);
 void sort_ready_list(void);
 
 /* mlfq function end */
+
+/* <-- Process hierarchy for System Call Start --> */
+struct thread *get_child_process (int pid);
+void remove_child_process(struct thread *cp);
+/* <-- Process hierarchy for System Call End --> */
 
 #endif /* threads/thread.h */
