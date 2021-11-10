@@ -188,6 +188,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  // printf("<< THREAD CREATE pid: %d\n", tid);
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -605,6 +606,7 @@ thread_schedule_tail (struct thread *prev)
 
   /* Mark us as running. */
   cur->status = THREAD_RUNNING;
+  // printf("-- Scheduled Thread: %d\n", cur->tid);
 
   /* Start new time slice. */
   thread_ticks = 0;

@@ -59,6 +59,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_OPEN:
       get_argument(sp , arg , 1);
       f->eax = open((const char*)arg[0]);
+      // printf("Open Returned %d\n", f->eax);
       break;
     case SYS_FILESIZE:
       get_argument(sp , arg , 1);
@@ -129,10 +130,10 @@ halt()
 void
 exit(int status)
 {
+  // printf("-- EXIT --\n");
   struct thread *cur = thread_current();
   cur->exit_status = status;
   printf ("%s: exit(%d)\n", thread_name(), status);
-  while(cur->fd_count>2) file_close(cur->fd[cur->fd_count--]);
   thread_exit();
 }
 
@@ -141,15 +142,19 @@ exec (const char *cmd_line)
 {
   tid_t pid = process_execute(cmd_line);
   if( pid == TID_ERROR ) return pid;
+
   struct thread *child = get_child_process(pid);
   sema_down(&child->sema_load);
   if(!child->program_loaded) return TID_ERROR;
+
   return pid;
 }
 
 int
 wait (tid_t pid)
 {
+  if ( thread_current()->tid == pid ) return -1;
+  // printf(">> WAIT pid: %d\n", pid);
   return process_wait(pid);
 }
 /* <-- Project2 : System Call - User Process Manipulation End --> */
@@ -198,8 +203,6 @@ int open (const char *file)
     struct thread *cur = thread_current();
     if (strcmp(cur->name, file) == 0)
       file_deny_write(fp);
-    else
-      file_allow_write(fp);
     cur->fd[++cur->fd_count]=fp;
     v = cur->fd_count;
   }

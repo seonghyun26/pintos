@@ -131,7 +131,7 @@ struct thread
 
    /* <-- Project 2 : File Descriptor Table for System Call Start --> */
    int fd_count;
-   struct file* fd[128];
+   struct file* fd[130];
    /* <-- Project 2 : File Descriptor Table for System Call Start --> */
 #endif
 

@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "userprog/syscall.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -45,9 +46,9 @@ process_execute (const char *file_name)
   strlcpy(dummy_name, file_name, strlen(file_name) + 1);
   for (i=0; dummy_name[i]!='\0' && dummy_name[i] != ' '; i++);
     dummy_name[i] = '\0';
-
   /* <-- Project2 : Argument Passing End --> */
-
+  // printf("\nPROCESS EXECUTE FUNCTION\n");
+  
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (dummy_name, PRI_DEFAULT, start_process, fn_copy);
@@ -161,6 +162,7 @@ start_process (void *file_name_)
 
   /* <-- Process hierarchy for System Call Start --> */
   struct thread *cur = thread_current();
+  // printf("loaded %d, success: %d\n", cur->tid, sucess);
   cur->program_loaded = success;
   sema_up(&cur->sema_load);
   /* <-- Process hierarchy for System Call End --> */
@@ -197,7 +199,7 @@ int
 process_wait (tid_t child_tid) 
 {
   struct thread* t = get_child_process(child_tid);
-  if(t == NULL || t == thread_current()) return -1;
+  if(t == NULL) return -1;
   sema_down(&t->sema_exit);
   int status = t->exit_status;
   remove_child_process(t);
@@ -210,6 +212,8 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
+  while(cur->fd_count>2) file_close(cur->fd[cur->fd_count--]); // close all files in process.
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -337,6 +341,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Open executable file. */
   // printf("File name: %s\n", file_name);
   file = filesys_open (file_name);
+  
+  /* Project 2 - 4 deny write to executable Start */
+  //file_deny_write(file);
+  /* Project 2 - 4 deny write to executable End */
+  
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
@@ -426,6 +435,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
+  /* Project 2 - 4 deny write to executable */
   file_close (file);
   return success;
 }
