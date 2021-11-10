@@ -10,7 +10,7 @@ void process_activate (void);
 
 /* <-- Project2 : Argument Passing Start --> */
 
-void stack_argument(char **parse, int argc, void **rsp);    /* Saved arguments on Stack */
+void stack_argument(char** argv, int argc, void **rsp);    /* Saved arguments on Stack */
 /* <-- Project2 : Argument Passing End --> */
 
 #endif /* userprog/process.h */

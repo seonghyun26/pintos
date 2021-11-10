@@ -63,19 +63,19 @@ process_execute (const char *file_name)
 
 /* <-- Project2 : Argument Passing Start --> */
 
-void stack_argument(char **parse, int argc, void **rsp)
+void stack_argument(char **argv, int argc, void **rsp)
 {
     int argv_address[128];
     int i, j;
 
     // Save argv on stack and record argv address
     for (i = argc - 2; i >= 0 ; i--) {
-      for (j = strlen(parse[i]); j >= 0 ; j--) {
+      for (j = strlen(argv[i]); j >= 0 ; j--) {
         *rsp -= 1;
-        **(char **)rsp = parse[i][j];
+        **(char **)rsp = argv[i][j];
       }
       argv_address[i] = (int)*rsp;
-      // printf("%s Saved at %x \n", parse[i], argv_address[i]);
+      // printf("%s Saved at %x \n", argv[i], argv_address[i]);
       // printf("argc address: %x\n", argv_address[i]);
     }
 
@@ -150,7 +150,6 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (argv[0], &if_.eip, &if_.esp);
-
 
   /* <-- Project2 : Argument Passing Start --> */
 
