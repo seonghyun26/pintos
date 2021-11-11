@@ -5,6 +5,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "devices/shutdown.h"
+#include "devices/input.h"
 #include "process.h"
 
 struct lock lock_filesys;
@@ -223,8 +224,9 @@ int read (int fd, void *buffer, unsigned size)
   lock_acquire(&lock_filesys);
   if (fd == 0) 
   {
-    for (i = 0; i < (long long int)size; i ++) 
-      if (((char *)buffer)[i] == '\0') break;
+    // for (i = 0; i < (long long int)size; i ++) 
+    //   if (((char *)buffer)[i] == '\0') break;
+    i = input_getc();
   } 
   else if (fd > 2) 
   {
@@ -238,7 +240,7 @@ int read (int fd, void *buffer, unsigned size)
 
 int write (int fd, const void *buffer, unsigned size)
 {
-  int v;
+  int v=-1;
   check_valid_address(buffer);
   lock_acquire(&lock_filesys);
   if ( fd == 1 )
@@ -253,11 +255,7 @@ int write (int fd, const void *buffer, unsigned size)
     // if(!cur->fd[fd]->deny_write) 
     // {
     // }
-      v = file_write(cur->fd[fd], buffer, size);
-    // else v = -1;
-  }
-  else {
-    v = -1;
+    v = file_write(cur->fd[fd], buffer, size);
   }
   lock_release(&lock_filesys);
   return v;
