@@ -153,28 +153,23 @@ start_process (void *file_name_)
   success = load (argv[0], &if_.eip, &if_.esp);
 
   /* <-- Project2 : Argument Passing Start --> */
-
   // printf("-- success: %d --\n", success);
   if ( success )  stack_argument(argv, argc, &if_.esp);
   // hex_dump((int)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
-
   /* <-- Project2 : Argument Passing End --> */
 
-  /* <-- Process hierarchy for System Call Start --> */
+  /* <--  Project 2 : Process hierarchy for System Call Start --> */
   struct thread *cur = thread_current();
-  // printf("loaded %d, success: %d\n", cur->tid, sucess);
   cur->program_loaded = success;
   sema_up(&cur->sema_load);
-  /* <-- Process hierarchy for System Call End --> */
+  /* <--  Project 2 : Process hierarchy for System Call End --> */
 
   /* If load failed, quit. */
   palloc_free_page (argv[0]);
   if (!success) 
   {
-    // cur->program_loaded = 0;
     exit(-1);
   }
-  // cur->program_loaded = 1;
   
   /* Start the user process by simulating a return from an
     interrupt, implemented by intr_exit (in
@@ -200,7 +195,9 @@ process_wait (tid_t child_tid)
 {
   struct thread* t = get_child_process(child_tid);
   if(t == NULL) return -1;
+
   sema_down(&t->sema_exit);
+
   int status = t->exit_status;
   remove_child_process(t);
   return status;
@@ -221,12 +218,12 @@ process_exit (void)
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set
-         cur->pagedir to NULL before switching page directories,
-         so that a timer interrupt can't switch back to the
-         process page directory.  We must activate the base page
-         directory before destroying the process's page
-         directory, or our active page directory will be one
-         that's been freed (and cleared). */
+        cur->pagedir to NULL before switching page directories,
+        so that a timer interrupt can't switch back to the
+        process page directory.  We must activate the base page
+        directory before destroying the process's page
+        directory, or our active page directory will be one
+        that's been freed (and cleared). */
       cur->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
@@ -234,8 +231,8 @@ process_exit (void)
 }
 
 /* Sets up the CPU for running user code in the current
-   thread.
-   This function is called on every context switch. */
+  thread.
+  This function is called on every context switch. */
 void
 process_activate (void)
 {

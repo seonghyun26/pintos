@@ -206,7 +206,7 @@ thread_create (const char *name, int priority,
   sf->ebp = 0;
 
 #ifdef USERPROG
-  /* <-- Process hierarchy for System Call Start --> */
+  /* <--  Project 2 : Process hierarchy for System Call Start --> */
   t->parent_thread = thread_current();
   t->program_loaded = 0;
   t->is_end = 0;
@@ -214,12 +214,12 @@ thread_create (const char *name, int priority,
   sema_init(&t->sema_load,0);
   list_init(&t->child_list);
   list_push_back(&thread_current()->child_list,&t->child_elem);
-  /* <-- Process hierarchy for System Call End --> */
+  /* <--  Project 2 : Process hierarchy for System Call End --> */
 
   /* <-- Project 2 : File Descriptor Table for System Call Start --> */
-  t->fd_count=2;
+  t->fd_count = 2;
   int i;
-  for( i = 0; i < 128; i ++)
+  for( i = 0; i < 130; i ++)
   {
     t->fd[i] = NULL;
   }
@@ -228,7 +228,6 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-  // check_current_thread_priority();
 
   return tid;
 }
@@ -268,7 +267,6 @@ thread_unblock (struct thread *t)
   ASSERT (t->status == THREAD_BLOCKED);
   
   list_push_back (&ready_list, &t->elem);
-  // insert_thread_with_priority(t);
 
   t->status = THREAD_READY;
   intr_set_level (old_level);
@@ -343,12 +341,10 @@ thread_yield (void)
   struct thread *cur = thread_current ();
   enum intr_level old_level;
   
-  // printf("Current thread wake up tick: %lld\n", cur->wake_up_tick);
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
   if (cur != idle_thread) {
-    // insert_thread_with_priority(cur); 
     list_push_back (&ready_list, &cur->elem);
   }
   cur->status = THREAD_READY;
@@ -539,15 +535,17 @@ init_thread (struct thread *t, const char *name, int priority)
   t->init_priority = priority;
   t->priority = priority;
   t->wake_up_tick = 0;
-  //mlfq
+
+  /* <--  Project 1 : mlfq, donation Start --> */
   t->nice = NICE_DEFAULT;
   t->recent_cpu = RECENT_CPU_DEFAULT;
   t->magic = THREAD_MAGIC;
   list_init(&t->donation_list);
+  /* <--  Project 1 : mlfq, donation End --> */
 
-  /* <-- Process hierarchy for System Call Start --> */
+  /* <--  Project 2 : Process hierarchy for System Call Start --> */
   list_init(&t->child_list);
-  /* <-- Process hierarchy for System Call End --> */
+  /* <--  Project 2 : Process hierarchy for System Call End --> */
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
