@@ -15,6 +15,8 @@
 #include "devices/timer.h"
 #include "devices/vga.h"
 #include "devices/rtc.h"
+/* Project 2 */
+#include "threads/synch.h"
 #include "threads/interrupt.h"
 #include "threads/io.h"
 #include "threads/loader.h"

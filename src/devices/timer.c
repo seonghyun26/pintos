@@ -180,7 +180,6 @@ timer_interrupt (struct intr_frame *args UNUSED)
   thread_wake_up (ticks);
   if(thread_mlfqs)
   {
-    struct thread* cur = thread_current();
     mlfqs_increment();
     if(ticks % TIMER_FREQ == 0)
     {

@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "userprog/syscall.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -22,9 +23,9 @@ static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
 /* Starts a new thread running a user program loaded from
-   FILENAME.  The new thread may be scheduled (and may even exit)
-   before process_execute() returns.  Returns the new process's
-   thread id, or TID_ERROR if the thread cannot be created. */
+  FILENAME.  The new thread may be scheduled (and may even exit)
+  before process_execute() returns.  Returns the new process's
+  thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
 process_execute (const char *file_name) 
 {
@@ -38,12 +39,78 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+
+  /* <-- Project2 : Argument Passing Start --> */
+  int i;
+  char dummy_name[128];
+  strlcpy(dummy_name, file_name, strlen(file_name) + 1);
+  for (i=0; dummy_name[i]!='\0' && dummy_name[i] != ' '; i++);
+    dummy_name[i] = '\0';
+  /* <-- Project2 : Argument Passing End --> */
+  // printf("\nPROCESS EXECUTE FUNCTION\n");
+  
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (dummy_name, PRI_DEFAULT, start_process, fn_copy);
+  
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+  {
+    palloc_free_page (fn_copy);
+  }
+
   return tid;
 }
+
+
+/* <-- Project2 : Argument Passing Start --> */
+
+void stack_argument(char **argv, int argc, void **rsp)
+{
+    int argv_address[128];
+    int i, j;
+
+    // Save argv on stack and record argv address
+    for (i = argc - 2; i >= 0 ; i--) {
+      for (j = strlen(argv[i]); j >= 0 ; j--) {
+        *rsp -= 1;
+        **(char **)rsp = argv[i][j];
+      }
+      argv_address[i] = (int)*rsp;
+      // printf("%s Saved at %x \n", argv[i], argv_address[i]);
+      // printf("argc address: %x\n", argv_address[i]);
+    }
+
+    // word align
+    while ( (int)(*rsp) % 4 != 0 ){
+      // printf("argc address: %x\n", *rsp);
+      *rsp -=1;
+    }
+
+    // Save argv[argc-1] which is 0(NULL)
+    *rsp -= 4;
+    **(uint32_t **)rsp = 0;
+
+    // Save argv[] address
+    for (i = argc - 2; i >= 0 ; i--) {
+      *rsp -= 4;
+      **(uint32_t **)rsp = argv_address[i];
+    }
+
+    // Save address where argv starts
+    *rsp -= 4;
+    **(uint32_t **)rsp = (int)*rsp + 4;
+
+    // Save argc
+    *rsp -= 4;
+    **(int **)rsp = argc - 1;
+
+    // Save Return address 0
+    *rsp = (uint32_t *)*rsp - 1;
+    **(uint32_t **)rsp = 0;
+}
+
+/* <-- Project2 : Argument Passing End --> */
+
 
 /* A thread function that loads a user process and starts it
    running. */
@@ -54,41 +121,86 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
 
+
+  /* <-- Project2 : Argument Passing Start --> */
+
+  char* argv[128];
+  int argc = 1;
+  char* token;
+  char* save_ptr;
+
+  token = strtok_r(file_name, " ", &save_ptr);
+  argv[0] = token;
+
+  while ( token != NULL ) {
+    token = strtok_r (NULL, " ", &save_ptr);
+    argv[argc] = token;
+    argc++;
+  } 
+
+  // int i;
+  // for( i = 0 ; i < argc; i++){
+  //   printf(" - argv %d : %s\n", i, argv[i] );
+  // }
+  /* <-- Project2 : Argument Passing End --> */
+
+
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (argv[0], &if_.eip, &if_.esp);
+
+  /* <-- Project2 : Argument Passing Start --> */
+  // printf("-- success: %d --\n", success);
+  if ( success )  stack_argument(argv, argc, &if_.esp);
+  // hex_dump((int)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
+  /* <-- Project2 : Argument Passing End --> */
+
+  /* <--  Project 2 : Process hierarchy for System Call Start --> */
+  struct thread *cur = thread_current();
+  cur->program_loaded = success;
+  sema_up(&cur->sema_load);
+  /* <--  Project 2 : Process hierarchy for System Call End --> */
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
+  palloc_free_page (argv[0]);
   if (!success) 
-    thread_exit ();
-
+  {
+    exit(-1);
+  }
+  
   /* Start the user process by simulating a return from an
-     interrupt, implemented by intr_exit (in
-     threads/intr-stubs.S).  Because intr_exit takes all of its
-     arguments on the stack in the form of a `struct intr_frame',
-     we just point the stack pointer (%esp) to our stack frame
+    interrupt, implemented by intr_exit (in
+    threads/intr-stubs.S).  Because intr_exit takes all of its
+    arguments on the stack in the form of a `struct intr_frame',
+    we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
-   it was terminated by the kernel (i.e. killed due to an
-   exception), returns -1.  If TID is invalid or if it was not a
-   child of the calling process, or if process_wait() has already
-   been successfully called for the given TID, returns -1
-   immediately, without waiting.
+  it was terminated by the kernel (i.e. killed due to an
+  exception), returns -1.  If TID is invalid or if it was not a
+  child of the calling process, or if process_wait() has already
+  been successfully called for the given TID, returns -1
+  immediately, without waiting.
 
-   This function will be implemented in problem 2-2.  For now, it
-   does nothing. */
+  This function will be implemented in problem 2-2.  For now, it
+  does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  return -1;
+  struct thread* t = get_child_process(child_tid);
+  if(t == NULL) return -1;
+
+  sema_down(&t->sema_exit);
+
+  int status = t->exit_status;
+  remove_child_process(t);
+  return status;
 }
 
 /* Free the current process's resources. */
@@ -98,18 +210,20 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
+  while(cur->fd_count>2) file_close(cur->fd[cur->fd_count--]); // close all files in process.
+
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set
-         cur->pagedir to NULL before switching page directories,
-         so that a timer interrupt can't switch back to the
-         process page directory.  We must activate the base page
-         directory before destroying the process's page
-         directory, or our active page directory will be one
-         that's been freed (and cleared). */
+        cur->pagedir to NULL before switching page directories,
+        so that a timer interrupt can't switch back to the
+        process page directory.  We must activate the base page
+        directory before destroying the process's page
+        directory, or our active page directory will be one
+        that's been freed (and cleared). */
       cur->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
@@ -117,8 +231,8 @@ process_exit (void)
 }
 
 /* Sets up the CPU for running user code in the current
-   thread.
-   This function is called on every context switch. */
+  thread.
+  This function is called on every context switch. */
 void
 process_activate (void)
 {
@@ -222,7 +336,13 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
+  // printf("File name: %s\n", file_name);
   file = filesys_open (file_name);
+  
+  /* Project 2 - 4 deny write to executable Start */
+  //file_deny_write(file);
+  /* Project 2 - 4 deny write to executable End */
+  
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
@@ -312,6 +432,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
+  /* Project 2 - 4 deny write to executable */
   file_close (file);
   return success;
 }
