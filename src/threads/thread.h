@@ -8,6 +8,8 @@
 #include "threads/synch.h"
 
 #include "filesys/file.h"
+/* Project 3 */
+#include "vm/page.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -42,7 +44,7 @@ typedef int tid_t;
    thread's kernel stack, which grows downward from the top of
    the page (at offset 4 kB).  Here's an illustration:
 
-      4 kB +---------------------------------+
+      4 kB  +---------------------------------+
             |          kernel stack           |
             |                |                |
             |                |                |
@@ -62,7 +64,7 @@ typedef int tid_t;
             |                :                |
             |               name              |
             |              status             |
-      0 kB +---------------------------------+
+      0 kB  +---------------------------------+
 
    The upshot of this is twofold:
 
@@ -134,6 +136,10 @@ struct thread
    struct file* fd[130];
    /* <-- Project 2 : File Descriptor Table for System Call Start --> */
 #endif
+
+   /* <--  Project 3 : VM S-Page Table Start --> */
+   struct hash* s_page_table;
+   /* <--  Project 3 : VM S-Page Table End --> */
 
     /* Owned by thread.c. */
    unsigned magic;                     /* Detects stack overflow. */

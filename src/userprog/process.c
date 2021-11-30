@@ -45,7 +45,7 @@ process_execute (const char *file_name)
   char dummy_name[128];
   strlcpy(dummy_name, file_name, strlen(file_name) + 1);
   for (i=0; dummy_name[i]!='\0' && dummy_name[i] != ' '; i++);
-    dummy_name[i] = '\0';
+  dummy_name[i] = '\0';
   /* <-- Project2 : Argument Passing End --> */
   // printf("\nPROCESS EXECUTE FUNCTION\n");
   
@@ -123,7 +123,6 @@ start_process (void *file_name_)
 
 
   /* <-- Project2 : Argument Passing Start --> */
-
   char* argv[128];
   int argc = 1;
   char* token;
@@ -144,6 +143,10 @@ start_process (void *file_name_)
   // }
   /* <-- Project2 : Argument Passing End --> */
 
+  /* <--  Project 3 : VM S-Page Table Start --> */
+  struct thread *cur = thread_current();
+  s_page_table_init(cur->s_page_table);
+  /* <--  Project 3 : VM S-Page Table End --> */
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -153,13 +156,14 @@ start_process (void *file_name_)
   success = load (argv[0], &if_.eip, &if_.esp);
 
   /* <-- Project2 : Argument Passing Start --> */
-  // printf("-- success: %d --\n", success);
-  if ( success )  stack_argument(argv, argc, &if_.esp);
+  if (success)
+  {
+    stack_argument(argv, argc, &if_.esp);
+  } 
   // hex_dump((int)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
   /* <-- Project2 : Argument Passing End --> */
 
   /* <--  Project 2 : Process hierarchy for System Call Start --> */
-  struct thread *cur = thread_current();
   cur->program_loaded = success;
   sema_up(&cur->sema_load);
   /* <--  Project 2 : Process hierarchy for System Call End --> */
@@ -211,6 +215,10 @@ process_exit (void)
   uint32_t *pd;
 
   while(cur->fd_count>2) file_close(cur->fd[cur->fd_count--]); // close all files in process.
+  
+  /* <--  Project 3 : VM S-Page Table Start --> */
+  s_page_table_destroy(cur->s_page_table);
+  /* <--  Project 3 : VM S-Page Table End --> */
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -519,8 +527,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
       /* Get a page of memory. */
       uint8_t *kpage = palloc_get_page (PAL_USER);
-      if (kpage == NULL)
-        return false;
+      if (kpage == NULL) return false;
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
