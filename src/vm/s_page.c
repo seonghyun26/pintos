@@ -1,30 +1,37 @@
 #include "vm/s_page.h"
-#include <list.h>
 #include <hash.h>
+#include <stdlib.h>
+#include "threads/thread.h"
+#include "threads/malloc.h"
+#include "filesys/file.h"
+#include "threads/vaddr.h"
 
-void
-s_page_table_init(
-  struct hash* s_page_table,
-  hash_hash_func s_page_table_hash,
-  hash_less_func s_page_table_less_func
-)
+bool
+s_page_table_init(struct hash* s_page_table)
 {
-  hash_init( s_page_table, s_page_table_hash,s_page_table_less_func);
+  return hash_init(s_page_table, s_page_table_hash, s_page_table_less_func, 0);
 }
 
 void
 s_page_table_destroy(struct hash* s_page_table)
 {
-  hash_destroy(s_page_table);
+  hash_destroy(s_page_table, free_spte);
+}
+
+void
+free_spte(struct hash_elem* he, void* aux UNUSED)
+{
+  struct spte* entry = hash_entry (he, struct spte, elem);
+  free(entry);
 }
 
 /*
   Create a new supplemental page table entry in the given hash table.
 */
-bool
-s_page_table_entry_create(struct hash* s_page_table, Spte* s)
+void
+s_page_table_entry_create(struct hash* s_page_table, struct spte* s)
 {
-  hash_insert(&s_page_table, new_Spte);
+  hash_insert(s_page_table, &s->elem);
 }
 
 /*
@@ -32,9 +39,9 @@ s_page_table_entry_create(struct hash* s_page_table, Spte* s)
   the given supplemental page table.
 */
 void
-s_page_table_entry_delete(struct hash* s_page_table, Spte* s)
+s_page_table_entry_delete(struct hash* s_page_table, struct spte* s)
 {
-  hash_delete(&s_page_table, s->elem);
+  hash_delete(s_page_table, &s->elem);
 }
 
 
@@ -42,10 +49,10 @@ s_page_table_entry_delete(struct hash* s_page_table, Spte* s)
   Return hash value of virtual address of sup page table
 */
 unsigned
-s_page_table_hash(struct hash_elem* he, void* aux UNUSED)
+s_page_table_hash(const struct hash_elem* he, void* aux UNUSED)
 {
-  Spte *spte = list_entry(he,Spte,elem);
-  return hash_int(se->vaddress);
+  struct spte *s_pte = hash_entry(he, struct spte, elem);
+  return hash_int((int)s_pte->vaddress);
 }
 
 
@@ -55,10 +62,10 @@ s_page_table_hash(struct hash_elem* he, void* aux UNUSED)
   else, return false.
 */
 bool
-s_page_table_less_func(struct hash_elem* a, struct hash_elem* b, void* aux UNUSED)
+s_page_table_less_func(const struct hash_elem* a, const struct hash_elem* b, void* aux UNUSED)
 {
-  Spte *spte_a = list_entry(a,Spte,elem);
-  Spte *spte_b = list_entry(b,Spte,elem);
+  struct spte *spte_a = hash_entry(a,struct spte,elem);
+  struct spte *spte_b = hash_entry(b,struct spte,elem);
   return spte_a->vaddress < spte_b->vaddress;
 }
 
@@ -66,17 +73,17 @@ s_page_table_less_func(struct hash_elem* a, struct hash_elem* b, void* aux UNUSE
   Find and Return s-table entry whose vaddress is va.
   if there is no matched elem, return NULL.
 */
-Spte 
+struct spte*
 find_s_page_table(struct thread* t,void* va)
 {
   void* page_address = pg_round_down(va);
   
-  Spte* spte = (Spte*)malloc(sizeof(Spte*));
-  spte->vaddress = page_address;
+  struct spte* s_pte = (struct spte*)malloc(sizeof(struct spte*));
+  s_pte->vaddress = page_address;
   
-  struct hash_elem* e= hash_find(t->s_page_table,&spte->hash_elem);
-  free(spte);
+  struct hash_elem* e= hash_find(t->s_page_table,&s_pte->elem);
+  free(s_pte);
   
-  if(e!=NULL) return list_entry(e,Spte,elem);
+  if(e!=NULL) return hash_entry(e, struct spte, elem);
   else return NULL;
 }

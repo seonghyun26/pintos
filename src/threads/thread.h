@@ -8,8 +8,9 @@
 #include "threads/synch.h"
 
 #include "filesys/file.h"
+
 /* Project 3 */
-#include "vm/page.h"
+#include "vm/s_page.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
