@@ -64,8 +64,8 @@ s_page_table_hash(const struct hash_elem* he, void* aux UNUSED)
 bool
 s_page_table_less_func(const struct hash_elem* a, const struct hash_elem* b, void* aux UNUSED)
 {
-  struct spte *spte_a = hash_entry(a,struct spte,elem);
-  struct spte *spte_b = hash_entry(b,struct spte,elem);
+  struct spte *spte_a = hash_entry(a, struct spte, elem);
+  struct spte *spte_b = hash_entry(b, struct spte, elem);
   return spte_a->vaddress < spte_b->vaddress;
 }
 
@@ -81,7 +81,7 @@ find_s_page_table(struct thread* t,void* va)
   struct spte* s_pte = (struct spte*)malloc(sizeof(struct spte*));
   s_pte->vaddress = page_address;
   
-  struct hash_elem* e= hash_find(t->s_page_table,&s_pte->elem);
+  struct hash_elem* e= hash_find(&t->s_page_table,&s_pte->elem);
   free(s_pte);
   
   if(e!=NULL) return hash_entry(e, struct spte, elem);

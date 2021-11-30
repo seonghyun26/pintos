@@ -148,7 +148,8 @@ start_process (void *file_name_)
 
   /* <--  Project 3 : VM S-Page Table Start --> */
   struct thread *cur = thread_current();
-  // s_page_table_init(cur->s_page_table);
+  // TODO:
+  s_page_table_init(&cur->s_page_table);
   // hash_init(cur->s_page_table, s_page_table_hash, s_page_table_less_func, 0);
   /* <--  Project 3 : VM S-Page Table End --> */
 
@@ -221,7 +222,8 @@ process_exit (void)
   while(cur->fd_count>2) file_close(cur->fd[cur->fd_count--]); // close all files in process.
   
   /* <--  Project 3 : VM S-Page Table Start --> */
-  // s_page_table_destroy(cur->s_page_table);
+  // TODO:
+  s_page_table_destroy(&cur->s_page_table);
   /* <--  Project 3 : VM S-Page Table End --> */
 
   /* Destroy the current process's page directory and switch back

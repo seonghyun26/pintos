@@ -139,7 +139,7 @@ struct thread
 #endif
 
    /* <--  Project 3 : VM S-Page Table Start --> */
-   struct hash* s_page_table;
+   struct hash s_page_table;
    /* <--  Project 3 : VM S-Page Table End --> */
 
     /* Owned by thread.c. */
