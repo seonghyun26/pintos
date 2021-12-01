@@ -5,13 +5,15 @@
 #include "filesys/filesys.h"
 #include <stdint.h>
 #include <string.h>
-
+#include "vm/s_page.h"
 
 void syscall_init (void);
 
 /* <-- Project2 : System Call --> */
 
-void check_valid_address(const void* addr);
+struct spte* check_valid_address(const void* addr);
+void check_valid_buffer(void* buffer, unsigned size, bool write);
+void check_valid_string(const void* str);
 void get_argument(void *esp, uint32_t *arg , int count);
 void check_file_name(const char *file);
 void check_file_descriptor(struct file* fd);

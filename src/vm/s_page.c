@@ -1,6 +1,6 @@
 #include "vm/s_page.h"
 #include <hash.h>
-#include <stdlib.h>
+#include <stdio.h>
 #include "threads/thread.h"
 #include "threads/malloc.h"
 #include "filesys/file.h"
@@ -29,9 +29,11 @@ free_spte(struct hash_elem* he, void* aux UNUSED)
   Create a new supplemental page table entry in the given hash table.
 */
 void
-s_page_table_entry_create(struct hash* s_page_table, struct spte* s)
+s_page_table_entry_insert(struct hash* s_page_table, struct spte* s)
 {
+  // printf("\n---A FLAG---\n");
   hash_insert(s_page_table, &s->elem);
+  // printf("\n---B FLAG---\n");
 }
 
 /*
@@ -74,11 +76,11 @@ s_page_table_less_func(const struct hash_elem* a, const struct hash_elem* b, voi
   if there is no matched elem, return NULL.
 */
 struct spte*
-find_s_page_table(struct thread* t,void* va)
+find_s_page_table(struct thread* t,const void* va)
 {
   void* page_address = pg_round_down(va);
   
-  struct spte* s_pte = (struct spte*)malloc(sizeof(struct spte*));
+  struct spte* s_pte = (struct spte*)malloc(sizeof(struct spte));
   s_pte->vaddress = page_address;
   
   struct hash_elem* e= hash_find(&t->s_page_table,&s_pte->elem);

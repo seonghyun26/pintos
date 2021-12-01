@@ -17,6 +17,7 @@
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "vm/s_page.h"
@@ -148,7 +149,6 @@ start_process (void *file_name_)
 
   /* <--  Project 3 : VM S-Page Table Start --> */
   struct thread *cur = thread_current();
-  // TODO:
   s_page_table_init(&cur->s_page_table);
   // hash_init(cur->s_page_table, s_page_table_hash, s_page_table_less_func, 0);
   /* <--  Project 3 : VM S-Page Table End --> */
@@ -165,7 +165,7 @@ start_process (void *file_name_)
   {
     stack_argument(argv, argc, &if_.esp);
   } 
-  // hex_dump((int)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
+  hex_dump((int)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
   /* <-- Project2 : Argument Passing End --> */
 
   /* <--  Project 2 : Process hierarchy for System Call Start --> */
@@ -222,7 +222,6 @@ process_exit (void)
   while(cur->fd_count>2) file_close(cur->fd[cur->fd_count--]); // close all files in process.
   
   /* <--  Project 3 : VM S-Page Table Start --> */
-  // TODO:
   s_page_table_destroy(&cur->s_page_table);
   /* <--  Project 3 : VM S-Page Table End --> */
 
@@ -522,7 +521,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
-  file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0) 
     {
       /* Calculate how to fill this page.
@@ -531,24 +529,50 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-      /* Get a page of memory. */
-      uint8_t *kpage = palloc_get_page (PAL_USER);
-      if (kpage == NULL) return false;
+      // NOTE: Original Implementation
+      // /* Get a page of memory. */
+      // uint8_t *kpage = palloc_get_page (PAL_USER);
+      // if (kpage == NULL) return false;
 
-      /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
-        {
-          palloc_free_page (kpage);
-          return false; 
-        }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
+      // /* Load this page. */
+      // if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
+      //   {
+      //     palloc_free_page (kpage);
+      //     return false; 
+      //   }
+      // memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
-      /* Add the page to the process's address space. */
-      if (!install_page (upage, kpage, writable)) 
-        {
-          palloc_free_page (kpage);
-          return false; 
-        }
+      // /* Add the page to the process's address space. */
+      // if (!install_page (upage, kpage, writable)) 
+      //   {
+      //     palloc_free_page (kpage);
+      //     return false; 
+      //   }
+
+      /* <--  Project 3 : VM Lazy Loading Start --> */
+      // 1. Create s-page table entry 
+      struct spte* spt_entry = malloc(sizeof(struct spte));
+      if ( spt_entry == NULL )  return false;
+      printf("\n---C FLAG---\n");
+
+      // 2. Init s-page table entry 
+      spt_entry->vaddress = (uint32_t*)upage;
+      spt_entry->type = PAGE_FILE;
+      spt_entry->file = file;
+      spt_entry->ofs = ofs;
+      
+      spt_entry->read_bytes = page_read_bytes;
+      spt_entry->zero_bytes = page_zero_bytes;
+      spt_entry->access_time = 0; // TODO: spt_entry access time
+      
+      spt_entry->present = false;
+      spt_entry->writable = writable;
+      spt_entry->dirty = false;
+      
+      // 3. push s-page table entry into hash 
+      struct thread* cur = thread_current();
+      s_page_table_entry_insert(&cur->s_page_table, spt_entry);
+      /* <--  Project 3 : VM Lazy Loading End --> */
 
       /* Advance. */
       read_bytes -= page_read_bytes;
@@ -571,7 +595,9 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
+      {
         *esp = PHYS_BASE;
+      }
       else
         palloc_free_page (kpage);
     }

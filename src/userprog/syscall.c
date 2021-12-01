@@ -24,6 +24,8 @@ syscall_handler (struct intr_frame *f)
 {
   void* sp = f -> esp; // user stack pointer
   // printf("sp: %x\n", sp);
+  printf("\n--- syscall FLAG---\n");
+
   check_valid_address(sp);
   int syscall_number = (int)*(uint32_t*)sp;
   uint32_t arg[3];
@@ -31,7 +33,7 @@ syscall_handler (struct intr_frame *f)
   // printf("syscall handler: %d, esp: '%x'\n", syscall_number, f->esp);
   // hex_dump(f->esp, f->esp, 100, 1); 
   // thread_exit();
-
+  
   switch (syscall_number)
   {
     case SYS_HALT:
@@ -43,6 +45,7 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_EXEC:
       get_argument(sp , arg , 1);
+      check_valid_string((const char *)arg[0]);
       f -> eax = exec((const char *)arg[0]);
       break;
     case SYS_WAIT:
@@ -51,14 +54,17 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_CREATE:
       get_argument(sp , arg , 2);
+      check_valid_string((const char *)arg[0]);
       f->eax = create((const char *)arg[0], (unsigned)arg[1]);
       break;
     case SYS_REMOVE:
       get_argument(sp , arg , 1);
+      check_valid_string((const char *)arg[0]);
       f->eax = remove((const char*)arg[0]);
       break;
     case SYS_OPEN:
       get_argument(sp , arg , 1);
+      check_valid_string((const char *)arg[0]);
       f->eax = open((const char*)arg[0]);
       // printf("Open Returned %d\n", f->eax);
       break;
@@ -68,6 +74,7 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_READ:
       get_argument(sp , arg , 3);
+      check_valid_buffer((void*)arg[1],(unsigned)arg[2],false);
       f->eax = read(
         (int)arg[0],
         (void*)arg[1],
@@ -76,6 +83,7 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_WRITE:
       get_argument(sp , arg , 3);
+      check_valid_buffer((void *)arg[1],(unsigned)arg[2],true);
       f -> eax = write(
         (int)arg[0],
         (void *)arg[1],
@@ -99,10 +107,33 @@ syscall_handler (struct intr_frame *f)
   }
 }
 
-void check_valid_address(const void* addr)
+struct spte* check_valid_address(const void* addr)
 {
   // printf("Check Valid Address: %d\n", is_user_vaddr(addr));
-  if(!is_user_vaddr(addr)  ) exit(-1);
+  if( !is_user_vaddr(addr) ) exit(-1);
+  return find_s_page_table(thread_current(), addr);
+}
+
+void check_valid_buffer(void* buffer, unsigned size, bool write)
+{
+  void* tmp = buffer;
+  for(; tmp < buffer + size; tmp++)
+  {
+    struct spte* s = check_valid_address(tmp);
+    if(s==NULL) exit(-1);
+    if(write && !s->writable) exit(-1);
+  }
+}
+
+void check_valid_string(const void* str)
+{
+  const void* tmp = str;
+  while(true)
+  {
+    struct spte* s = check_valid_address(tmp);
+    if(s == NULL) exit(-1);
+    if((*(char*)tmp) == '\0') break;
+  }
 }
 
 void get_argument(void *esp, uint32_t *arg , int count)

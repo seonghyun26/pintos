@@ -4,6 +4,7 @@
 #include "threads/thread.h"
 #include "threads/synch.h"
 #include "threads/palloc.h"
+#include "vm/s_page.h"
 
 static struct list frame_table;
 static struct lock frame_table_lock;
@@ -22,27 +23,23 @@ frame_table_init ()
   If Success, Make a new frame_entry and pushback in frame table
 */
 struct frame*
-frame_allocate (enum palloc_flags p_flag)
-{
-  lock_acquire(&frame_table_lock);
+frame_allocate (enum palloc_flags p_flag, struct spte* spte)
+{  
   void* kernel_virtual_address_ = palloc_get_page(p_flag);
   if( kernel_virtual_address_ == NULL)
   {
     kernel_virtual_address_ = frame_evict();
-    if ( kernel_virtual_address_ == NULL )
-    {
-      lock_release(&frame_table_lock);
-      return NULL;
-    }
+    if ( kernel_virtual_address_ == NULL )  return NULL;
   }
 
-  struct frame* new_frame = (struct frame*)malloc(sizeof(struct frame));
+  struct frame* new_frame = malloc(sizeof(struct frame));
   ASSERT ( new_frame != NULL );
   new_frame->kernel_virtual_address = kernel_virtual_address_;
   new_frame->thread = thread_current();
+  new_frame->spte = spte;
 
+  lock_acquire(&frame_table_lock);
   list_push_back(&frame_table, &new_frame->elem);
-
   lock_release(&frame_table_lock);
 
   return new_frame;
