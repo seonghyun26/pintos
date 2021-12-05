@@ -149,7 +149,7 @@ start_process (void *file_name_)
 
   /* <--  Project 3 : VM S-Page Table Start --> */
   struct thread *cur = thread_current();
-  s_page_table_init(&cur->s_page_table);
+  // s_page_table_init(&cur->s_page_table);
   // hash_init(cur->s_page_table, s_page_table_hash, s_page_table_less_func, 0);
   /* <--  Project 3 : VM S-Page Table End --> */
 
@@ -165,7 +165,7 @@ start_process (void *file_name_)
   {
     stack_argument(argv, argc, &if_.esp);
   } 
-  hex_dump((int)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
+  // hex_dump((int)if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
   /* <-- Project2 : Argument Passing End --> */
 
   /* <--  Project 2 : Process hierarchy for System Call Start --> */
@@ -174,7 +174,7 @@ start_process (void *file_name_)
   /* <--  Project 2 : Process hierarchy for System Call End --> */
 
   /* If load failed, quit. */
-  palloc_free_page (argv[0]);
+  // palloc_free_page (argv[0]);
   if (!success) 
   {
     exit(-1);
@@ -222,7 +222,7 @@ process_exit (void)
   while(cur->fd_count>2) file_close(cur->fd[cur->fd_count--]); // close all files in process.
   
   /* <--  Project 3 : VM S-Page Table Start --> */
-  s_page_table_destroy(&cur->s_page_table);
+  s_page_table_destroy(cur->s_page_table);
   /* <--  Project 3 : VM S-Page Table End --> */
 
   /* Destroy the current process's page directory and switch back
@@ -342,14 +342,21 @@ load (const char *file_name, void (**eip) (void), void **esp)
   bool success = false;
   int i;
 
+
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
     goto done;
   process_activate ();
 
+  t->s_page_table = s_page_table_init();
+  if ( t->s_page_table == NULL )
+  {
+    printf(">>WTF\n");
+    goto done;
+  }
+
   /* Open executable file. */
-  // printf("File name: %s\n", file_name);
   file = filesys_open (file_name);
   
   /* Project 2 - 4 deny write to executable Start */
@@ -442,8 +449,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
+  return success;
 
- done:
+done:
   /* We arrive here whether the load is successful or not. */
   /* Project 2 - 4 deny write to executable */
   file_close (file);
@@ -521,6 +529,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
+  file_seek(file, ofs);
   while (read_bytes > 0 || zero_bytes > 0) 
     {
       /* Calculate how to fill this page.
@@ -553,7 +562,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       // 1. Create s-page table entry 
       struct spte* spt_entry = malloc(sizeof(struct spte));
       if ( spt_entry == NULL )  return false;
-      printf("\n---C FLAG---\n");
+      // printf("\n---C FLAG---\n");
 
       // 2. Init s-page table entry 
       spt_entry->vaddress = (uint32_t*)upage;
@@ -571,13 +580,14 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       
       // 3. push s-page table entry into hash 
       struct thread* cur = thread_current();
-      s_page_table_entry_insert(&cur->s_page_table, spt_entry);
+      s_page_table_entry_insert(cur->s_page_table, spt_entry);
       /* <--  Project 3 : VM Lazy Loading End --> */
 
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
+      ofs += PGSIZE;
     }
   return true;
 }
@@ -590,17 +600,41 @@ setup_stack (void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+  // NOTE: Original Implementation
+  // kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+  // if (kpage != NULL) 
+  // {
+  //   success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+  //   if (success)
+  //     *esp = PHYS_BASE;
+  //   else
+  //     palloc_free_page (kpage);
+  // }
+
+  struct spte* spt_entry = malloc(sizeof(struct spte));
+  if ( spt_entry == NULL )  return false;
+  spt_entry->type = PAGE_ZERO;
+  spt_entry->vaddress = PHYS_BASE - PGSIZE;
+  spt_entry->present = true;
+  spt_entry->writable = true;
+  s_page_table_entry_insert(thread_current()->s_page_table, spt_entry);
+
+  struct frame* new_frame = frame_allocate(PAL_USER | PAL_ZERO, spt_entry);
+  new_frame->spte = spt_entry;
+
+  kpage = new_frame->kernel_virtual_address;
   if (kpage != NULL) 
+  {
+    success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+    if (success)
     {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-      {
-        *esp = PHYS_BASE;
-      }
-      else
-        palloc_free_page (kpage);
+      *esp = PHYS_BASE;
     }
+    else
+      // palloc_free_page (kpage);
+      frame_free(new_frame);
+  }
+
   return success;
 }
 

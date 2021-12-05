@@ -3,10 +3,12 @@
 #include "userprog/process.h"
 #include <inttypes.h>
 #include <stdio.h>
+#include "userprog/pagedir.h"
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/palloc.h"
 #include "vm/frame.h"
 #include "vm/s_page.h"
 
@@ -15,6 +17,7 @@ static long long page_fault_cnt;
 
 static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
+static bool install_page (void *upage, void *kpage, bool writable);
 
 /* Registers handlers for interrupts that can be caused by user
    programs.
@@ -153,38 +156,26 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  if ( !user || is_kernel_vaddr(fault_addr)) exit(-1);
+  // If fault address is at kernerl virtual address and accessed by user, exit
+  if ( is_kernel_vaddr(fault_addr) ) exit(-1);
 
-  else if ( not_present && !write )
+  else if ( not_present )
   {
-    printf("\nPage Fault - Not Present\n");
-    exit(-1);
-
-    // TODO: Lazy Loading when fram allocated and file not loaded
-    // struct spte* spt_entry = find_s_page_table(thread_current(), pg_round_down(fault_addr));
-    // struct frame* new_frame = frame_allocate(PAL_USER, spt_entry);
-
-    // file_seek(spt_entry->file, spt_entry->ofs);
-    // if ( file_read(spt_entry->file, spt_entry->vaddress, spt_entry->read_bytes) != (int)spt_entry->read_bytes )
-    // {
-    //   // File Loading Failed;
-    //   frame_free(new_frame);
-    //   exit(-1);
-    // }
-
-    // memset(spt_entry->vaddress + spt_entry->read_bytes, 0, spt_entry->zero_bytes);
-    // spt_entry->present = true;
-
-    // if ( !install_page( spt_entry->vaddress, new_frame->kernel_virtual_address, spt_entry->writable) )
-    // {
-    //   // Failed in installing page in Page Table
-    //   frame_free(new_frame);
-    //   exit(-1);
-    // }
+    // printf("\nPage Fault - Not Present\n");
+    // exit(-1);
+    if(!load_s_page_table_entry(fault_addr))
+    {
+      exit(-1);
+    }
   }
 
   else {
-    printf("\nPage Fault - !!!!\n");
+    printf ("Page fault at %p: %s error %s page in %s context.\n",
+      fault_addr,
+      not_present ? "not present" : "rights violation",
+      write ? "writing" : "reading",
+      user ? "user" : "kernel"
+    );
     exit(-1);
   }
 
@@ -201,3 +192,13 @@ page_fault (struct intr_frame *f)
 
 }
 
+static bool
+install_page (void *upage, void *kpage, bool writable)
+{
+  struct thread *t = thread_current ();
+
+  /* Verify that there's not already a page at that virtual
+     address, then map our page there. */
+  return (pagedir_get_page (t->pagedir, upage) == NULL
+          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}

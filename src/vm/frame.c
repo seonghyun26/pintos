@@ -1,5 +1,6 @@
 #include "vm/frame.h"
 #include <list.h>
+#include <stdio.h>
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/synch.h"
@@ -25,16 +26,17 @@ frame_table_init ()
 struct frame*
 frame_allocate (enum palloc_flags p_flag, struct spte* spte)
 {  
-  void* kernel_virtual_address_ = palloc_get_page(p_flag);
-  if( kernel_virtual_address_ == NULL)
+  void* new_kernel_virtual_address = palloc_get_page(p_flag);
+  // printf(">> In Frame.c : %x\n", new_kernel_virtual_address);
+  if( new_kernel_virtual_address == NULL)
   {
-    kernel_virtual_address_ = frame_evict();
-    if ( kernel_virtual_address_ == NULL )  return NULL;
+    new_kernel_virtual_address = frame_evict(p_flag);
+    if ( new_kernel_virtual_address == NULL )  return NULL;
   }
 
   struct frame* new_frame = malloc(sizeof(struct frame));
   ASSERT ( new_frame != NULL );
-  new_frame->kernel_virtual_address = kernel_virtual_address_;
+  new_frame->kernel_virtual_address = new_kernel_virtual_address;
   new_frame->thread = thread_current();
   new_frame->spte = spte;
 
@@ -67,17 +69,21 @@ frame_free (struct frame* frame_to_free)
   Choose a frame to evict using LRU policy
   Evict the frame, and return the kernel virtual adress
 */
-struct frame*
-frame_evict ()
+void*
+frame_evict (enum palloc_flags p_flag)
 {
   if ( !list_empty(&frame_table) )
     PANIC ( "Frame Table Empty, Nothing to Evict" );
 
   // TODO: Evict a frame by LRU policy
-  struct frame *frame = NULL;
+  struct frame* frame_to_remove = list_entry(list_front(&frame_table), struct frame , elem);
+  frame_free(frame_to_remove);
+
+  void* new_kernel_virtual_address = palloc_get_page(p_flag);
+  return new_kernel_virtual_address;
   // struct hash* s_page_table = frame->thread->s_page_table;
 
-  return frame;
+  // return frame;
 }
 
 /*
@@ -85,7 +91,7 @@ frame_evict ()
   in the frame table
 */
 struct frame*
-frame_find (uint32_t* kernel_virtual_address_)
+frame_find (uint8_t* kernel_virtual_address_cmp)
 {
   struct frame* f;
   struct list_elem* e;
@@ -93,7 +99,7 @@ frame_find (uint32_t* kernel_virtual_address_)
   for( e = list_begin(&frame_table) ; e != list_end(&frame_table) ; e = list_next(e) )
   {
     f = list_entry(e, struct frame, elem);
-    if ( f->kernel_virtual_address == kernel_virtual_address_ )  return f;
+    if ( f->kernel_virtual_address == kernel_virtual_address_cmp )  return f;
   }
   return NULL;
 }

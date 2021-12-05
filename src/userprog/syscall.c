@@ -24,55 +24,56 @@ syscall_handler (struct intr_frame *f)
 {
   void* sp = f -> esp; // user stack pointer
   // printf("sp: %x\n", sp);
-  printf("\n--- syscall FLAG---\n");
+  //printf("\n--- syscall FLAG---\n");
 
   check_valid_address(sp);
+  
   int syscall_number = (int)*(uint32_t*)sp;
   uint32_t arg[3];
   
-  // printf("syscall handler: %d, esp: '%x'\n", syscall_number, f->esp);
+  // printf(">> syscall handler: %d, esp: '%x'\n", syscall_number, f->esp);
   // hex_dump(f->esp, f->esp, 100, 1); 
   // thread_exit();
   
   switch (syscall_number)
   {
-    case SYS_HALT:
+    case SYS_HALT:  //0
       halt();
       break;
-    case SYS_EXIT:
+    case SYS_EXIT:  //1
       get_argument(sp , arg , 1);
       exit((int)arg[0]);
       break;
-    case SYS_EXEC:
+    case SYS_EXEC:  //2
       get_argument(sp , arg , 1);
       check_valid_string((const char *)arg[0]);
       f -> eax = exec((const char *)arg[0]);
       break;
-    case SYS_WAIT:
+    case SYS_WAIT:  //3
       get_argument(sp , arg , 1);
       f -> eax = wait((tid_t)arg[0]);
       break;
-    case SYS_CREATE:
+    case SYS_CREATE:  //4
       get_argument(sp , arg , 2);
       check_valid_string((const char *)arg[0]);
       f->eax = create((const char *)arg[0], (unsigned)arg[1]);
       break;
-    case SYS_REMOVE:
+    case SYS_REMOVE:  //5
       get_argument(sp , arg , 1);
       check_valid_string((const char *)arg[0]);
       f->eax = remove((const char*)arg[0]);
       break;
-    case SYS_OPEN:
+    case SYS_OPEN:  //6
       get_argument(sp , arg , 1);
       check_valid_string((const char *)arg[0]);
       f->eax = open((const char*)arg[0]);
       // printf("Open Returned %d\n", f->eax);
       break;
-    case SYS_FILESIZE:
+    case SYS_FILESIZE:  //7
       get_argument(sp , arg , 1);
       f->eax = filesize((int)arg[0]);
       break;
-    case SYS_READ:
+    case SYS_READ:  //8
       get_argument(sp , arg , 3);
       check_valid_buffer((void*)arg[1],(unsigned)arg[2],false);
       f->eax = read(
@@ -81,7 +82,7 @@ syscall_handler (struct intr_frame *f)
         (unsigned)arg[2]
       );
       break;
-    case SYS_WRITE:
+    case SYS_WRITE: //9
       get_argument(sp , arg , 3);
       check_valid_buffer((void *)arg[1],(unsigned)arg[2],true);
       f -> eax = write(
@@ -90,15 +91,15 @@ syscall_handler (struct intr_frame *f)
         (unsigned)arg[2]
       );
       break;
-    case SYS_SEEK:
+    case SYS_SEEK:  //10
       get_argument(sp , arg , 2);
       seek((int)arg[0], (unsigned)arg[1]);
       break;
-    case SYS_TELL:
+    case SYS_TELL:  //11
       get_argument(sp , arg , 1);
       f->eax = tell((int)arg[0]);
       break;
-    case SYS_CLOSE:
+    case SYS_CLOSE: //12
       get_argument(sp , arg , 1);
       close((int)arg[0]);
       break;
@@ -109,18 +110,23 @@ syscall_handler (struct intr_frame *f)
 
 struct spte* check_valid_address(const void* addr)
 {
-  // printf("Check Valid Address: %d\n", is_user_vaddr(addr));
-  if( !is_user_vaddr(addr) ) exit(-1);
-  return find_s_page_table(thread_current(), addr);
+  // printf("Check Valid Address: %0x, %d\n", addr, is_user_vaddr(addr));
+  if( !is_user_vaddr(addr) || (uint32_t*)addr < (uint32_t*)0x08048000) exit(-1);
+  
+  struct spte* check_spte = find_s_page_table(thread_current(), addr);
+  if( check_spte == NULL )  exit(-1);
+  return check_spte;
 }
 
 void check_valid_buffer(void* buffer, unsigned size, bool write)
 {
   void* tmp = buffer;
+  // printf(">> size : %d\n",size);
   for(; tmp < buffer + size; tmp++)
   {
+    // printf(">> tmp : %x\n", tmp);
     struct spte* s = check_valid_address(tmp);
-    if(s==NULL) exit(-1);
+    if(s == NULL) exit(-1);
     if(write && !s->writable) exit(-1);
   }
 }
