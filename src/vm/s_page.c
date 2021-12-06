@@ -32,16 +32,6 @@ s_page_table_destroy(struct hash* s_page_table)
 }
 
 void
-free_spte(struct hash_elem* he, void* aux UNUSED)
-{
-  struct spte* entry = hash_entry (he, struct spte, elem);
-  free(entry);
-}
-
-/*
-  Create a new supplemental page table entry in the given hash table.
-*/
-void
 s_page_table_entry_insert(struct hash* s_page_table, struct spte* s)
 {
   // printf("\n---A FLAG---\n");
@@ -49,15 +39,12 @@ s_page_table_entry_insert(struct hash* s_page_table, struct spte* s)
   // printf("\n---B FLAG---\n");
 }
 
-/*
-  Destory the given supplemental page table entry in
-  the given supplemental page table.
-*/
 void
 s_page_table_entry_delete(struct hash* s_page_table, struct spte* s)
 {
   hash_delete(s_page_table, &s->elem);
 }
+
 
 
 /*
@@ -82,6 +69,16 @@ s_page_table_less_func(const struct hash_elem* a, const struct hash_elem* b, voi
   struct spte *spte_b = hash_entry(b, struct spte, elem);
   return spte_a->vaddress < spte_b->vaddress;
 }
+
+void
+free_spte(struct hash_elem* he, void* aux UNUSED)
+{
+  struct spte* entry = hash_entry (he, struct spte, elem);
+  free(entry);
+}
+
+
+
 
 /*
   Find and Return s-table entry whose vaddress is va.

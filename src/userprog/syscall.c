@@ -31,7 +31,7 @@ syscall_handler (struct intr_frame *f)
   int syscall_number = (int)*(uint32_t*)sp;
   uint32_t arg[3];
   
-  // printf(">> syscall handler: %d, esp: '%x'\n", syscall_number, f->esp);
+  // printf(">> syscall handler: %d, esp: '%x'\n", syscall_number, (unsigned int)f->esp);
   // hex_dump(f->esp, f->esp, 100, 1); 
   // thread_exit();
   
@@ -46,7 +46,7 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_EXEC:  //2
       get_argument(sp , arg , 1);
-      check_valid_string((const char *)arg[0]);
+      // check_valid_string((const char *)arg[0]);
       f -> eax = exec((const char *)arg[0]);
       break;
     case SYS_WAIT:  //3
@@ -55,17 +55,18 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_CREATE:  //4
       get_argument(sp , arg , 2);
-      check_valid_string((const char *)arg[0]);
+      // check_valid_string((const char *)arg[0]);
       f->eax = create((const char *)arg[0], (unsigned)arg[1]);
+      // printf("\n-- SYS CREATE COMPLETE -- \n");
       break;
     case SYS_REMOVE:  //5
       get_argument(sp , arg , 1);
-      check_valid_string((const char *)arg[0]);
+      // check_valid_string((const char *)arg[0]);
       f->eax = remove((const char*)arg[0]);
       break;
     case SYS_OPEN:  //6
       get_argument(sp , arg , 1);
-      check_valid_string((const char *)arg[0]);
+      // check_valid_string((const char *)arg[0]);
       f->eax = open((const char*)arg[0]);
       // printf("Open Returned %d\n", f->eax);
       break;
@@ -139,6 +140,7 @@ void check_valid_string(const void* str)
     struct spte* s = check_valid_address(tmp);
     if(s == NULL) exit(-1);
     if((*(char*)tmp) == '\0') break;
+    tmp++;
   }
 }
 
@@ -146,17 +148,12 @@ void get_argument(void *esp, uint32_t *arg , int count)
 {
   int i;
   for( i = 1 ; i <= count ; i++ ) {
-    // printf("%d at %d\n", *((uint32_t*)(esp + 4*i)), i);
-    check_valid_address(esp + i * 4); /* 인자가 저장된 위치가 유저영역인지 확인 */
-    // printf("ASDF %d\n", i);
-    arg[i-1] = *((uint32_t*)(esp + 4*i)); /* 유저 스택에 저장된 인자값들을 커널로 저장 */
-    // printf("QWER %d\n", i);
+    check_valid_address(esp + i * 4);
+    // Save arguments in stack to arg[]
+    arg[i-1] = *((uint32_t*)(esp + 4*i));
   }
-
-  // for ( i = 0 ; i < count ; i++ ){ 
-  //   printf("argv %d : %x\n", i, arg[i]);
-  // }
 }
+
 
 /* <-- Project2 : System Call - User Process Manipulation Start --> */
 void
@@ -218,13 +215,23 @@ bool
 create (const char *file, unsigned initial_size)
 {
   check_file_name(file);
-  return filesys_create(file, initial_size);
+
+  lock_acquire(&lock_filesys);
+  bool success = filesys_create(file, initial_size);
+  lock_release(&lock_filesys);
+
+  return success;
 }
 
 bool remove (const char *file)
 {
   check_file_name(file);
-  return filesys_remove(file);
+
+  lock_acquire(&lock_filesys);
+  bool success = filesys_remove(file);
+  lock_release(&lock_filesys);
+
+  return success;
 }
 
 int open (const char *file)

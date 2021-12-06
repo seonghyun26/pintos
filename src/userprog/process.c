@@ -147,12 +147,6 @@ start_process (void *file_name_)
   // }
   /* <-- Project2 : Argument Passing End --> */
 
-  /* <--  Project 3 : VM S-Page Table Start --> */
-  struct thread *cur = thread_current();
-  // s_page_table_init(&cur->s_page_table);
-  // hash_init(cur->s_page_table, s_page_table_hash, s_page_table_less_func, 0);
-  /* <--  Project 3 : VM S-Page Table End --> */
-
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -169,6 +163,7 @@ start_process (void *file_name_)
   /* <-- Project2 : Argument Passing End --> */
 
   /* <--  Project 2 : Process hierarchy for System Call Start --> */
+  struct thread *cur = thread_current();
   cur->program_loaded = success;
   sema_up(&cur->sema_load);
   /* <--  Project 2 : Process hierarchy for System Call End --> */
@@ -348,13 +343,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (t->pagedir == NULL) 
     goto done;
   process_activate ();
-
+  
+  /* <--  Project 3 : VM S-Page Table Start --> */
   t->s_page_table = s_page_table_init();
   if ( t->s_page_table == NULL )
   {
-    printf(">>WTF\n");
     goto done;
   }
+  /* <--  Project 3 : VM S-Page Table End --> */
 
   /* Open executable file. */
   file = filesys_open (file_name);

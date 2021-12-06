@@ -13,15 +13,17 @@ enum page_type
 };
 
 struct spte {
-    uint32_t* vaddress;
-    enum page_type type;
+    uint32_t* vaddress;     // virtual memory address
+    enum page_type type;    // page type declared using enum above
+
+    // Information needed for Lazy Loading
     struct file* file;
     off_t ofs;
-
     size_t read_bytes;
     size_t zero_bytes;
+
+    // Information about page
     uint64_t access_time;
-    
     bool present;
     bool writable;
     bool dirty;
@@ -31,13 +33,12 @@ struct spte {
 
 struct hash* s_page_table_init(void);
 void s_page_table_destroy(struct hash* s_page_table);
-void free_spte(struct hash_elem* he, void* aux UNUSED);
-
 void s_page_table_entry_insert(struct hash* s_page_table, struct spte* s);
 void s_page_table_entry_delete(struct hash* s_page_table, struct spte* s);
 
 unsigned s_page_table_hash(const struct hash_elem* he, void* aux UNUSED);
 bool s_page_table_less_func(const struct hash_elem* a, const struct hash_elem* b, void* aux UNUSED);
+void free_spte(struct hash_elem* he, void* aux UNUSED);
 
 struct spte* find_s_page_table(struct thread* t, const void* va);
 
