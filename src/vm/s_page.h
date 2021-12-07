@@ -15,7 +15,7 @@ enum page_type
 struct spte {
     uint32_t* vaddress;     // virtual memory address
     uint32_t* kaddress;     // kernel memory address
-    uint32_t* pagedir;      // thread's pagedir;
+    uint32_t* pagedir;      // thread's pagedir
     enum page_type type;    // page type declared using enum above
 
     // Information needed for Lazy Loading

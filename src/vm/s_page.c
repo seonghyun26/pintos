@@ -32,6 +32,7 @@ spte_file_create(uint32_t* vaddress, struct file* file, off_t ofs, size_t read_b
   if ( new_spte == NULL ) return NULL;
   
   new_spte->vaddress=pg_round_down(vaddress);
+  new_spte->type=PAGE_FILE;
   new_spte->file=file;
   new_spte->ofs=ofs;
   new_spte->read_bytes=read_bytes;
@@ -63,6 +64,8 @@ spte_find(struct thread* t, const void* va)
   struct hash_elem* e = hash_find(t->s_page_table,&s_pte->elem);
   free(s_pte);
   
+  //printf(">> ?????????: %d\n", hash_entry(e, struct spte, elem)->writable);
+
   if(e != NULL) return hash_entry(e, struct spte, elem);
   else return NULL;
 }
@@ -96,11 +99,6 @@ void
 free_spte(struct hash_elem* he, void* aux UNUSED)
 {
   struct spte* entry = hash_entry (he, struct spte, elem);
-  // if ( entry->type == PAGE_FILE){
-  //   struct frame* frame_to_free = frame_find_with_spte(entry);
-  //   if ( frame_to_free->kernel_virtual_address != NULL )
-  //     frame_free(frame_to_free);
-  // }
   free(entry);
 }
 
@@ -114,10 +112,7 @@ free_spte(struct hash_elem* he, void* aux UNUSED)
 bool
 load_s_page_table_entry(struct spte* spt_entry)
 {
-  // printf("-- ASDF --\n");
-  if ( spt_entry == NULL )  exit(-1);
-  
-  // printf("-- QWER --\n");
+  if ( spt_entry == NULL )  exit(-1); 
   if ( spt_entry->present == true) return false;
 
   struct frame* new_frame = frame_allocate(PAL_USER, spt_entry);

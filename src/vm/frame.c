@@ -33,7 +33,10 @@ frame_allocate (enum palloc_flags p_flag, struct spte* spte)
   if( new_kernel_virtual_address == NULL)
   {
     new_kernel_virtual_address = frame_evict(p_flag);
-    if ( new_kernel_virtual_address == NULL )  return NULL;
+    if ( new_kernel_virtual_address == NULL )  {
+      palloc_free_page(new_kernel_virtual_address);
+      return NULL;
+    }
   }
   // printf(">> Allocate Frame %x\n",new_kernel_virtual_address);
 
@@ -65,7 +68,6 @@ frame_free (struct frame* frame_to_free)
   lock_acquire(&frame_table_lock);
 
   list_remove(&frame_to_free->elem);
-  // TODO:
   palloc_free_page(frame_to_free->kernel_virtual_address); 
   free(frame_to_free);
 

@@ -1,5 +1,6 @@
 #include "userprog/syscall.h"
 #include "userprog/pagedir.h"
+#include <list.h>
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
@@ -34,7 +35,7 @@ syscall_handler (struct intr_frame *f)
   int syscall_number = (int)*(uint32_t*)sp;
   uint32_t arg[3];
   
-  // printf(">> syscall handler: %d, esp: '%x'\n", syscall_number, (unsigned int)f->esp);
+  // printf(">>> syscall handler: %d, esp: '%x'\n", syscall_number, (unsigned int)f->esp);
   // hex_dump(f->esp, f->esp, 100, 1); 
   // thread_exit();
   
@@ -79,7 +80,9 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_READ:    //8
       get_argument(sp , arg , 3);
+      // printf("\n--READ FLAG start--\n");
       check_valid_buffer((void*)arg[1],(unsigned)arg[2],false);
+      // printf("\n--READ FLAG end--\n");
       f->eax = read(
         (int)arg[0],
         (void*)arg[1],
@@ -88,7 +91,9 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_WRITE:   //9
       get_argument(sp , arg , 3);
+      // printf("\n--WRITE FLAG start--\n");
       check_valid_buffer((void *)arg[1],(unsigned)arg[2],true);
+      // printf("\n--WRITE FLAG end--\n");
       f -> eax = write(
         (int)arg[0],
         (void *)arg[1],
@@ -109,7 +114,9 @@ syscall_handler (struct intr_frame *f)
       break;
     case SYS_MMAP:    //13
       get_argument(sp , arg , 2);
+      // printf("<-- syscall mmap start -->\n");
       f->eax = mmap((int)arg[0], (void*)arg[1]);
+      // printf("<-- syscall mmap end -->\n");
       break;
     case SYS_MUNMAP:  //14
       get_argument(sp , arg , 1);
@@ -126,6 +133,7 @@ struct spte* check_valid_address(const void* addr)
   if( !is_user_vaddr(addr) || (uint32_t*)addr < (uint32_t*)0x08048000) exit(-1);
   
   struct spte* check_spte = spte_find(thread_current(), addr);
+  // printf("spte %x\n", check_spte);
   if( check_spte == NULL )  exit(-1);
   return check_spte;
 }
@@ -133,14 +141,17 @@ struct spte* check_valid_address(const void* addr)
 void check_valid_buffer(void* buffer, unsigned size, bool write)
 {
   void* tmp = buffer;
-  // printf(">> size : %d\n",size);
+  // printf(">> Checking Buffer... \n");
   for(; tmp < buffer + size; tmp++)
   {
-    // printf(">> tmp : %x\n", tmp);
     struct spte* s = check_valid_address(tmp);
+    // printf(">>valid buffer address : %x\n", tmp);
+    // printf(">>valid buffer address : %d\n", *(uint32_t*)tmp);
     if(s == NULL) exit(-1);
+    // printf(" >> write && !s->writable: %d, %d\n",write, !s->writable);
     if(write && !s->writable) exit(-1);
   }
+  // printf(">> Checking Buffer Done!... \n\n");
 }
 
 void check_valid_string(const void* str)
@@ -158,6 +169,8 @@ void check_valid_string(const void* str)
 void get_argument(void *esp, uint32_t *arg , int count)
 {
   int i;
+  // printf(">>buffer %x\n", (void *)*((uint32_t*)(esp + 8)));
+
   for( i = 1 ; i <= count ; i++ ) {
     check_valid_address(esp + i * 4);
     // Save arguments in stack to arg[]
@@ -301,6 +314,7 @@ int
 write (int fd, const void *buffer, unsigned size)
 {
   int v=-1;
+  // printf(">>FD: %d, size: %d\n", fd, size);
   check_valid_address(buffer);
   lock_acquire(&lock_filesys);
   if ( fd == 1 )
@@ -312,9 +326,6 @@ write (int fd, const void *buffer, unsigned size)
   {
     struct thread *cur = thread_current();
     check_file_descriptor(cur->fd[fd]);
-    // if(!cur->fd[fd]->deny_write) 
-    // {
-    // }
     v = file_write(cur->fd[fd], buffer, size);
   }
   lock_release(&lock_filesys);
@@ -377,17 +388,23 @@ mmap_file_create(void)
 mapid_t
 mmap (int fd, void* addr)
 {
+  // printf(">> A Flag...\n");
+
   if(addr==NULL || !is_user_vaddr(addr) || pg_ofs(addr) != 0)
     return -1;
+
+  // printf(">> B Flag...\n");
   
   lock_acquire(&lock_filesys);
+  // printf("fd: %d\n", fd);
   struct file *f = process_get_file(fd);
-  if(f==NULL || !(f = file_reopen(f))) 
+  if( f == NULL || !(f = file_reopen(f))) 
   {
     lock_release(&lock_filesys);
     return -1;
   }
-  
+  // printf(">> C Flag...\n");
+
   size_t size = file_length(f);
   if(size == 0)   
   {
@@ -395,8 +412,16 @@ mmap (int fd, void* addr)
     file_close(f);
     return -1;
   }
-
+  // printf(">> D Flag...\n");
+  
   struct thread* cur = thread_current();
+  struct spte* entry = spte_find(cur, addr);
+  if(entry != NULL)
+  {
+    lock_release(&lock_filesys);
+    return -1;
+  }
+
   // Make a spte entry for mmap files
   off_t ofs;
   for(ofs = 0; (size_t) ofs < size; ofs += PGSIZE)
@@ -405,21 +430,26 @@ mmap (int fd, void* addr)
     size_t zero_bytes = PGSIZE - read_bytes;
     struct spte* s= spte_file_create(addr + ofs, f, ofs, read_bytes, zero_bytes, true);
     if(s==NULL) break;
+    //printf(" writable : %d\n",s->writable);
     hash_insert(cur->s_page_table, &s->elem);
   }
+  // printf(">> start address: %x, end: %x, %x\n", addr, addr+ofs, size);
+
   if ( (size_t) ofs < size )
   {
     for(ofs = 0; (size_t) ofs < size; ofs += PGSIZE)
     {
       struct spte* spte_to_free = spte_find(cur,addr+ofs);
       hash_delete(cur->s_page_table, &spte_to_free->elem);
+      free_spte(&spte_to_free->elem, 0);  
       free(spte_to_free);
     }
     lock_release(&lock_filesys);
     file_close(f);
     return -1;
   }
-  
+
+  // printf(">>MF create start\n");
   struct mmap_file* new_mmap_file = mmap_file_create();
   if(new_mmap_file == NULL)
   {
@@ -427,13 +457,12 @@ mmap (int fd, void* addr)
     file_close(f);
     return -1;
   }
-
   new_mmap_file->file=f;
   new_mmap_file->size=size;
   new_mmap_file->vaddress=addr;
 
+  // printf(">>MMAP List insert\n");
   list_push_back(&cur->mmap_list,&new_mmap_file->elem);
-
   lock_release(&lock_filesys);
   return new_mmap_file->mapid;
 }
@@ -442,6 +471,8 @@ mmap (int fd, void* addr)
 void
 munmap(mapid_t mapping)
 {
+  lock_acquire(&lock_filesys);
+  // printf(">>> UNMAP??\n");
   struct thread* cur = thread_current();
   struct mmap_file* mf;
   struct mmap_file* temp_mmap_file = NULL;
@@ -458,6 +489,8 @@ munmap(mapid_t mapping)
   // If there is no mmap_file with mapid mapping
   if ( temp_mmap_file == NULL)
   {
+    // printf(">> NO FILE ??????\n");
+    lock_release(&lock_filesys);
     exit(-1);
   }
   
@@ -469,19 +502,22 @@ munmap(mapid_t mapping)
   for(ofs = 0; (size_t) ofs < size; ofs += PGSIZE)
   {
     struct spte* s = spte_find(cur,addr+ofs);
-    
     //if spte is dirty, write back.
     if(is_spte_dirty(s))
     {
+      // printf(">> THIS IS DIRTY!! \n");
       file_write_at(f,s->kaddress,PGSIZE, ofs);
     }
     pagedir_clear_page (s->pagedir, s->vaddress);
     hash_delete(cur->s_page_table, &s->elem);
-    free(s);
+    free_spte(&s->elem, 0);
   }
+
   list_remove(&mf->elem);
   free(mf);
   file_close(f);
+  
+  lock_release(&lock_filesys);
   return;
 }
 

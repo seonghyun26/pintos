@@ -881,6 +881,7 @@ void remove_child_process(struct thread *cp)
 struct file* process_get_file(int fd_index)
 {
   struct thread* t = thread_current();
-  if( t->fd_count <= fd_index ) return NULL;
+  // printf("fd_count, fd_index: %d, %d\n", t->fd_count, fd_index);
+  if( t->fd_count < fd_index ) return NULL;
   return t->fd[fd_index];
 }

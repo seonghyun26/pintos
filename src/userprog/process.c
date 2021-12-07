@@ -213,8 +213,18 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
-
+  
   while(cur->fd_count>2) file_close(cur->fd[cur->fd_count--]); // close all files in process.
+
+  struct list_elem *e;
+  mapid_t mapid;
+  while(!list_empty(&cur->mmap_list))
+  {
+    e = list_front(&cur->mmap_list);
+    mapid = list_entry (e, struct mmap_file, elem)->mapid;
+    munmap(mapid);
+  }
+
   
   /* <--  Project 3 : VM S-Page Table Start --> */
   if ( cur->s_page_table != NULL )
@@ -612,6 +622,7 @@ setup_stack (void **esp)
   if ( spt_entry == NULL )  return false;
   spt_entry->type = PAGE_ZERO;
   spt_entry->vaddress = PHYS_BASE - PGSIZE;
+  // printf(">> Stack starts at %x\n", PHYS_BASE - PGSIZE);
   spt_entry->present = true;
   spt_entry->writable = true;
   hash_insert(thread_current()->s_page_table, &spt_entry->elem);
@@ -627,10 +638,15 @@ setup_stack (void **esp)
     if (success)
     {
       *esp = PHYS_BASE;
+      thread_current()->sp = PHYS_BASE;
     }
     else
       // palloc_free_page (kpage);
       frame_free(new_frame);
+  }
+  else
+  {
+    frame_free(new_frame);
   }
 
   return success;

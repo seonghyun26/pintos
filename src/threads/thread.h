@@ -140,6 +140,7 @@ struct thread
 
    /* <--  Project 3 : VM  --> */
    struct hash* s_page_table;
+   uint32_t *sp;                  /* Stack Pointer for Stack growth */
    struct list mmap_list;
    /* <--  Project 3 : VM  --> */
 
