@@ -217,7 +217,8 @@ process_exit (void)
   while(cur->fd_count>2) file_close(cur->fd[cur->fd_count--]); // close all files in process.
   
   /* <--  Project 3 : VM S-Page Table Start --> */
-  s_page_table_destroy(cur->s_page_table);
+  if ( cur->s_page_table != NULL )
+    s_page_table_destroy(cur->s_page_table);
   /* <--  Project 3 : VM S-Page Table End --> */
 
   /* Destroy the current process's page directory and switch back
@@ -576,7 +577,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       
       // 3. push s-page table entry into hash 
       struct thread* cur = thread_current();
-      s_page_table_entry_insert(cur->s_page_table, spt_entry);
+      hash_insert(cur->s_page_table, &spt_entry->elem);
       /* <--  Project 3 : VM Lazy Loading End --> */
 
       /* Advance. */
@@ -613,7 +614,8 @@ setup_stack (void **esp)
   spt_entry->vaddress = PHYS_BASE - PGSIZE;
   spt_entry->present = true;
   spt_entry->writable = true;
-  s_page_table_entry_insert(thread_current()->s_page_table, spt_entry);
+  hash_insert(thread_current()->s_page_table, &spt_entry->elem);
+
 
   struct frame* new_frame = frame_allocate(PAL_USER | PAL_ZERO, spt_entry);
   new_frame->spte = spt_entry;

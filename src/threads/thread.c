@@ -226,6 +226,8 @@ thread_create (const char *name, int priority,
   /* <-- Project 2 : File Descriptor Table for System Call Start --> */
 #endif
 
+  list_init(&t->mmap_list);
+
   /* Add to run queue. */
   thread_unblock (t);
 
@@ -874,3 +876,11 @@ void remove_child_process(struct thread *cp)
 }
 
 /* <-- Process hierarchy for System Call End --> */
+
+
+struct file* process_get_file(int fd_index)
+{
+  struct thread* t = thread_current();
+  if( t->fd_count <= fd_index ) return NULL;
+  return t->fd[fd_index];
+}

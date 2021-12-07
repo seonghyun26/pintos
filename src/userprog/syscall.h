@@ -18,7 +18,14 @@ void get_argument(void *esp, uint32_t *arg , int count);
 void check_file_name(const char *file);
 void check_file_descriptor(struct file* fd);
 
-int write (int fd, const void *buffer, unsigned size);
 /* <-- Project2 : System Call --> */
+
+
+/* <-- Project3 : VM mmap Start --> */
+mapid_t mmap (int fd, void* addr);
+void munmap(mapid_t mapping);
+
+struct mmap_file* mmap_file_create(void);
+/* <-- Project3 : VM mmap End--> */
 
 #endif /* userprog/syscall.h */

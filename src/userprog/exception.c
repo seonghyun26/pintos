@@ -9,6 +9,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "vm/frame.h"
 #include "vm/s_page.h"
 
@@ -17,7 +18,6 @@ static long long page_fault_cnt;
 
 static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
-static bool install_page (void *upage, void *kpage, bool writable);
 
 /* Registers handlers for interrupts that can be caused by user
    programs.
@@ -136,12 +136,12 @@ page_fault (struct intr_frame *f)
   void *fault_addr;  /* Fault address. */
 
   /* Obtain faulting address, the virtual address that was
-     accessed to cause the fault.  It may point to code or to
-     data.  It is not necessarily the address of the instruction
-     that caused the fault (that's f->eip).
-     See [IA32-v2a] "MOV--Move to/from Control Registers" and
-     [IA32-v3a] 5.15 "Interrupt 14--Page Fault Exception
-     (#PF)". */
+    accessed to cause the fault.  It may point to code or to
+    data.  It is not necessarily the address of the instruction
+    that caused the fault (that's f->eip).
+    See [IA32-v2a] "MOV--Move to/from Control Registers" and
+    [IA32-v3a] 5.15 "Interrupt 14--Page Fault Exception
+    (#PF)". */
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
 
   /* Turn interrupts back on (they were only off so that we could
@@ -156,16 +156,45 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  if (is_kernel_vaddr(fault_addr) ) exit(-1);
-
-  else if ( not_present )
+  // When there is no page in virtual address fault_addr
+  if ( not_present )
   {
     // printf("\nPage Fault - Not Present\n");
-    // exit(-1);
-    if(!load_s_page_table_entry(fault_addr))
+    struct spte* spt_entry = spte_find(thread_current(), pg_round_down(fault_addr));
+    void* sp = f->esp;
+
+    // Stack Growth
+    // printf(">> sp: %x, fault_addr: %x\n", sp, fault_addr);
+    if (
+      spt_entry == NULL &&
+      fault_addr >= PHYS_BASE-0x800000 &&
+      fault_addr < PHYS_BASE &&
+      fault_addr >= sp-32
+    )
     {
-      exit(-1);
+      // printf(">> Stack Growth\n");
+      struct spte* new_spt_entry = malloc(sizeof(struct spte));
+      new_spt_entry->vaddress = pg_round_down(fault_addr);
+      new_spt_entry->type = PAGE_ZERO;
+      new_spt_entry->writable = true;
+      new_spt_entry->dirty = false;
+      new_spt_entry->present = false;
+
+      hash_insert(thread_current()->s_page_table, &new_spt_entry->elem);
+      load_s_page_table_entry(new_spt_entry);
     }
+    // Lazy loading using s-page table
+    else
+    {
+      load_s_page_table_entry(spt_entry);
+    }
+    return;
+  }
+
+  else if ( !user || is_kernel_vaddr(fault_addr))
+  {
+    // printf(">>Kernel Page Fault\n");
+    exit(-1);
   }
 
   else {
@@ -189,15 +218,4 @@ page_fault (struct intr_frame *f)
 //           user ? "user" : "kernel");
 //   kill (f);
 
-}
-
-static bool
-install_page (void *upage, void *kpage, bool writable)
-{
-  struct thread *t = thread_current ();
-
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }

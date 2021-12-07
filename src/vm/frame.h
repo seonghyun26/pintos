@@ -20,6 +20,7 @@ struct frame* frame_allocate (enum palloc_flags p_flag, struct spte* spte);
 void frame_free(struct frame* frame_to_deallocate);
 void* frame_evict (enum palloc_flags p_flag);
 struct frame* frame_find (uint8_t* kernel_virtual_address);
+struct frame* frame_find_with_spte(struct spte* spt_entry);
 /* <--  Project 3 : VM Frame Table End --> */
 
 #endif

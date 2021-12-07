@@ -26,6 +26,8 @@ frame_table_init ()
 struct frame*
 frame_allocate (enum palloc_flags p_flag, struct spte* spte)
 {  
+  ASSERT( spte != NULL );
+
   void* new_kernel_virtual_address = palloc_get_page(p_flag);
   // printf(">> In Frame.c : %x\n", new_kernel_virtual_address);
   if( new_kernel_virtual_address == NULL)
@@ -33,9 +35,13 @@ frame_allocate (enum palloc_flags p_flag, struct spte* spte)
     new_kernel_virtual_address = frame_evict(p_flag);
     if ( new_kernel_virtual_address == NULL )  return NULL;
   }
+  // printf(">> Allocate Frame %x\n",new_kernel_virtual_address);
 
   struct frame* new_frame = malloc(sizeof(struct frame));
-  ASSERT ( new_frame != NULL );
+  if ( new_frame == NULL ){
+    palloc_free_page(new_kernel_virtual_address);
+    return NULL;
+  }
   new_frame->kernel_virtual_address = new_kernel_virtual_address;
   new_frame->thread = thread_current();
   new_frame->spte = spte;
@@ -54,10 +60,12 @@ void
 frame_free (struct frame* frame_to_free)
 {
   ASSERT ( frame_to_free != NULL );
-
+  // printf(">> Free Frame %x\n", frame_to_free->kernel_virtual_address);
+  
   lock_acquire(&frame_table_lock);
 
   list_remove(&frame_to_free->elem);
+  // TODO:
   palloc_free_page(frame_to_free->kernel_virtual_address); 
   free(frame_to_free);
 
@@ -72,7 +80,7 @@ frame_free (struct frame* frame_to_free)
 void*
 frame_evict (enum palloc_flags p_flag)
 {
-  if ( !list_empty(&frame_table) )
+  if ( list_empty(&frame_table) )
     PANIC ( "Frame Table Empty, Nothing to Evict" );
 
   // TODO: Evict a frame by LRU policy
@@ -100,6 +108,20 @@ frame_find (uint8_t* kernel_virtual_address_cmp)
   {
     f = list_entry(e, struct frame, elem);
     if ( f->kernel_virtual_address == kernel_virtual_address_cmp )  return f;
+  }
+  return NULL;
+}
+
+struct frame*
+frame_find_with_spte (struct spte* spt_entry)
+{
+  struct frame* f;
+  struct list_elem* e;
+
+  for( e = list_begin(&frame_table) ; e != list_end(&frame_table) ; e = list_next(e) )
+  {
+    f = list_entry(e, struct frame, elem);
+    if ( f->spte == spt_entry )  return f;
   }
   return NULL;
 }

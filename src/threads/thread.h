@@ -138,9 +138,10 @@ struct thread
    /* <-- Project 2 : File Descriptor Table for System Call Start --> */
 #endif
 
-   /* <--  Project 3 : VM S-Page Table Start --> */
+   /* <--  Project 3 : VM  --> */
    struct hash* s_page_table;
-   /* <--  Project 3 : VM S-Page Table End --> */
+   struct list mmap_list;
+   /* <--  Project 3 : VM  --> */
 
     /* Owned by thread.c. */
    unsigned magic;                     /* Detects stack overflow. */
@@ -213,5 +214,7 @@ void sort_ready_list(void);
 struct thread *get_child_process (int pid);
 void remove_child_process(struct thread *cp);
 /* <-- Process hierarchy for System Call End --> */
+
+struct file* process_get_file(int fd);
 
 #endif /* threads/thread.h */
