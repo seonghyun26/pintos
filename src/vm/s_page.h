@@ -9,7 +9,8 @@
 enum page_type
 {
     PAGE_FILE,
-    PAGE_ZERO
+    PAGE_ZERO,
+    PAGE_SWAP
 };
 
 struct spte {
@@ -30,14 +31,16 @@ struct spte {
     bool writable;
     bool dirty;
 
+    size_t swap_idx;
+    bool mmap;
+
     struct hash_elem elem;
-    struct hash_elem mmap_elem;
 };
 
 struct hash* s_page_table_init(void);
 void s_page_table_destroy(struct hash* s_page_table);
 
-struct spte* spte_file_create(uint32_t* vaddress, struct file* file, off_t ofs, size_t read_bytes, size_t zero_bytes, bool writable);
+struct spte* spte_file_create(uint32_t* vaddress, struct file* file, off_t ofs, size_t read_bytes, size_t zero_bytes, bool writable, bool mmap);
 struct spte* spte_find(struct thread* t, const void* va);
 
 unsigned s_page_table_hash(const struct hash_elem* he, void* aux UNUSED);
@@ -46,7 +49,7 @@ void free_spte(struct hash_elem* he, void* aux UNUSED);
 
 bool load_s_page_table_entry(struct spte* spt_entry);
 
-bool is_spte_dirty(struct spte* spt_entry);
+void update_spte_dirty(struct spte* spt_entry);
 
 /* <--  Project 3 : VM S Page Table End --> */
 

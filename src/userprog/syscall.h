@@ -12,7 +12,8 @@ void syscall_init (void);
 /* <-- Project2 : System Call --> */
 
 struct spte* check_valid_address(const void* addr);
-void check_valid_buffer(void* buffer, unsigned size, bool write);
+void check_valid_buffer_read(void* buffer, unsigned size);
+void check_valid_buffer_write(void* buffer, unsigned size);
 void check_valid_string(const void* str);
 void get_argument(void *esp, uint32_t *arg , int count);
 void check_file_name(const char *file);
@@ -23,9 +24,10 @@ void check_file_descriptor(struct file* fd);
 
 /* <-- Project3 : VM mmap Start --> */
 mapid_t mmap (int fd, void* addr);
-void munmap(mapid_t mapping);
+void munmap_file(struct mmap_file* mf);
 
 struct mmap_file* mmap_file_create(void);
+off_t mmap_write_back (struct file *f, void *kaddr, off_t ofs);
 /* <-- Project3 : VM mmap End--> */
 
 #endif /* userprog/syscall.h */

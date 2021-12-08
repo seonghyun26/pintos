@@ -66,6 +66,8 @@ lookup_page (uint32_t *pd, const void *vaddr, bool create)
   /* Check for a page table for VADDR.
      If one is missing, create one if requested. */
   pde = pd + pd_no (vaddr);
+  // printf("-- %x --\n", vaddr);
+
   if (*pde == 0) 
     {
       if (create)
@@ -73,13 +75,12 @@ lookup_page (uint32_t *pd, const void *vaddr, bool create)
           pt = palloc_get_page (PAL_ZERO);
           if (pt == NULL) 
             return NULL; 
-      
           *pde = pde_create (pt);
         }
       else
         return NULL;
     }
-
+  
   /* Return the page table entry. */
   pt = pde_get_pt (*pde);
   return &pt[pt_no (vaddr)];
@@ -181,6 +182,7 @@ pagedir_set_dirty (uint32_t *pd, const void *vpage, bool dirty)
         {
           *pte &= ~(uint32_t) PTE_D;
           invalidate_pagedir (pd);
+          // printf("pagedir set to dirty %x\n", vpage);
         }
     }
 }

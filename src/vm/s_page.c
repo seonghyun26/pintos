@@ -12,6 +12,7 @@
 #include "userprog/pagedir.h"
 #include "userprog/syscall.h"
 #include "vm/frame.h"
+#include "vm/swap.h"
 
 static bool install_page (void *upage, void *kpage, bool writable);
 
@@ -26,18 +27,24 @@ s_page_table_init(void)
 
 
 struct spte* 
-spte_file_create(uint32_t* vaddress, struct file* file, off_t ofs, size_t read_bytes, size_t zero_bytes, bool writable)
+spte_file_create(
+  uint32_t* vaddress, struct file* file, off_t ofs,
+  size_t read_bytes, size_t zero_bytes, bool writable, bool mmap
+)
 {
+  if(spte_find(thread_current(),vaddress) != NULL) return NULL;
   struct spte* new_spte = malloc(sizeof(struct spte));
   if ( new_spte == NULL ) return NULL;
   
   new_spte->vaddress=pg_round_down(vaddress);
+  // printf(">> New spt_entry->vaddress: %x\n", new_spte->vaddress);
   new_spte->type=PAGE_FILE;
   new_spte->file=file;
   new_spte->ofs=ofs;
   new_spte->read_bytes=read_bytes;
   new_spte->zero_bytes=zero_bytes;
   new_spte->writable=writable;
+  new_spte->mmap=mmap;
   new_spte->present=false;
   new_spte->dirty=false;
 
@@ -99,6 +106,10 @@ void
 free_spte(struct hash_elem* he, void* aux UNUSED)
 {
   struct spte* entry = hash_entry (he, struct spte, elem);
+  if ( entry->type == PAGE_SWAP)
+  {
+    swap_free(entry->swap_idx);
+  }
   free(entry);
 }
 
@@ -136,6 +147,14 @@ load_s_page_table_entry(struct spte* spt_entry)
     case PAGE_ZERO:
       memset (new_frame->kernel_virtual_address, 0, PGSIZE);
       break;
+    case PAGE_SWAP:
+      swap_in (spt_entry->swap_idx, new_frame->kernel_virtual_address);
+      // if (!)
+      // {
+      //   frame_free (new_frame);
+      //   exit(-1);
+      // };
+      break;
     default:
       break;
   }
@@ -147,23 +166,24 @@ load_s_page_table_entry(struct spte* spt_entry)
     exit(-1);
   }
 
+
   spt_entry->pagedir=thread_current()->pagedir;
+  pagedir_set_dirty(spt_entry->pagedir, new_frame->kernel_virtual_address, false);
   spt_entry->kaddress=(uint32_t*)new_frame->kernel_virtual_address;
 
   return true;
 }
 
 
-bool is_spte_dirty(struct spte* spt_entry)
+void update_spte_dirty(struct spte* spt_entry)
 {
-  if (spt_entry->kaddress == NULL)
-    return spt_entry->dirty;
+  if (spt_entry->kaddress == NULL) return;
+    
+  spt_entry->dirty = spt_entry->dirty
+    || pagedir_is_dirty (spt_entry->pagedir, spt_entry->vaddress)
+    || pagedir_is_dirty (spt_entry->pagedir, spt_entry->kaddress);
 
-  spt_entry->dirty = spt_entry->dirty || pagedir_is_dirty (spt_entry->pagedir, spt_entry->vaddress)|| pagedir_is_dirty (spt_entry->pagedir, spt_entry->kaddress);
-
-  return spt_entry->dirty;
 }
-
 
 
 static bool

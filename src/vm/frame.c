@@ -1,11 +1,14 @@
 #include "vm/frame.h"
+#include "vm/s_page.h"
+#include "vm/swap.h"
 #include <list.h>
 #include <stdio.h>
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/synch.h"
 #include "threads/palloc.h"
-#include "vm/s_page.h"
+#include "userprog/syscall.h"
+#include <bitmap.h>
 
 static struct list frame_table;
 static struct lock frame_table_lock;
@@ -87,11 +90,42 @@ frame_evict (enum palloc_flags p_flag)
 
   // TODO: Evict a frame by LRU policy
   struct frame* frame_to_remove = list_entry(list_front(&frame_table), struct frame , elem);
+  struct spte* spt_entry = frame_to_remove->spte;
+  size_t idx;
+
+  switch(spt_entry->type)
+  {
+    case PAGE_FILE:
+      if ( !spt_entry->writable ) break;
+      // If file is from mmap
+      if ( spt_entry->mmap )
+      {
+        if ( spt_entry->dirty )
+        {
+          off_t byte = mmap_write_back(spt_entry->file, frame_to_remove->kernel_virtual_address, spt_entry->ofs);
+          if ( byte == spt_entry->ofs )
+          {
+            return NULL;
+          }
+        }
+      }
+      break;
+    case PAGE_ZERO:
+      if (!spt_entry->dirty) break;
+    case PAGE_SWAP:
+      idx = swap_out (frame_to_remove->kernel_virtual_address);
+      if ( idx == BITMAP_ERROR )
+        return NULL;
+      spt_entry->type = PAGE_SWAP;
+      spt_entry->swap_idx = idx;
+      break;
+    default:
+      break;
+  }
   frame_free(frame_to_remove);
 
   void* new_kernel_virtual_address = palloc_get_page(p_flag);
   return new_kernel_virtual_address;
-  // struct hash* s_page_table = frame->thread->s_page_table;
 
   // return frame;
 }

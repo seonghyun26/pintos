@@ -10,10 +10,14 @@
 #include "devices/shutdown.h"
 #include "devices/input.h"
 #include "process.h"
+#include "vm/frame.h"
+#include "vm/swap.h"
 
 struct lock lock_filesys;
 struct lock lock_mapid;
 static void syscall_handler (struct intr_frame *);
+static int get_user (const uint8_t *vaddr);
+static bool put_user (uint8_t *vaddr, uint8_t byte);
 
 void
 syscall_init (void) 
@@ -31,11 +35,12 @@ syscall_handler (struct intr_frame *f)
   //printf("\n--- syscall FLAG---\n");
 
   check_valid_address(sp);
-  
+  thread_current()->sp = sp;
+
   int syscall_number = (int)*(uint32_t*)sp;
   uint32_t arg[3];
   
-  // printf(">>> syscall handler: %d, esp: '%x'\n", syscall_number, (unsigned int)f->esp);
+  // printf("\n\n>>> syscall handler: %d, esp: '%x'\n", syscall_number, (unsigned int)f->esp);
   // hex_dump(f->esp, f->esp, 100, 1); 
   // thread_exit();
   
@@ -81,7 +86,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_READ:    //8
       get_argument(sp , arg , 3);
       // printf("\n--READ FLAG start--\n");
-      check_valid_buffer((void*)arg[1],(unsigned)arg[2],false);
+      check_valid_buffer_read((void*)arg[1],(unsigned)arg[2]);
       // printf("\n--READ FLAG end--\n");
       f->eax = read(
         (int)arg[0],
@@ -92,7 +97,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_WRITE:   //9
       get_argument(sp , arg , 3);
       // printf("\n--WRITE FLAG start--\n");
-      check_valid_buffer((void *)arg[1],(unsigned)arg[2],true);
+      check_valid_buffer_write((void *)arg[1],(unsigned)arg[2]);
       // printf("\n--WRITE FLAG end--\n");
       f -> eax = write(
         (int)arg[0],
@@ -134,24 +139,48 @@ struct spte* check_valid_address(const void* addr)
   
   struct spte* check_spte = spte_find(thread_current(), addr);
   // printf("spte %x\n", check_spte);
-  if( check_spte == NULL )  exit(-1);
+  if( check_spte == NULL )  {
+    // printf(">> No spte for addr %x\n", addr);
+    exit(-1);
+  }
   return check_spte;
 }
 
-void check_valid_buffer(void* buffer, unsigned size, bool write)
+void check_valid_buffer_read(void* buffer, unsigned size)
 {
-  void* tmp = buffer;
+  void* tmp = pg_round_down(buffer);
   // printf(">> Checking Buffer... \n");
-  for(; tmp < buffer + size; tmp++)
+  for(; tmp < buffer + size; tmp += PGSIZE)
   {
+    if (get_user(tmp) == -1)
+    {
+      exit(-1);
+    }
+    
     struct spte* s = check_valid_address(tmp);
     // printf(">>valid buffer address : %x\n", tmp);
-    // printf(">>valid buffer address : %d\n", *(uint32_t*)tmp);
+    // // printf(">>valid buffer address : %d\n", *(uint32_t*)tmp);
     if(s == NULL) exit(-1);
-    // printf(" >> write && !s->writable: %d, %d\n",write, !s->writable);
+    // // printf(" >> write && !s->writable: %d, %d\n",write, !s->writable);
     if(write && !s->writable) exit(-1);
   }
   // printf(">> Checking Buffer Done!... \n\n");
+}
+
+void check_valid_buffer_write(void* buffer, unsigned size)
+{
+  void* tmp = pg_round_down(buffer);
+  for(; tmp < buffer + size; tmp += PGSIZE)
+  {
+    // printf("tmp: %x\n", tmp);
+    if (put_user(tmp, get_user(tmp)) == false)
+    {
+      exit(-1);
+    }
+    struct spte* s = check_valid_address(tmp);
+    if(s == NULL) exit(-1);
+    if(!s->writable) exit(-1);
+  }
 }
 
 void check_valid_string(const void* str)
@@ -292,12 +321,11 @@ int
 read (int fd, void *buffer, unsigned size)
 {
   int i = -1;
+  // printf("in buffer: %x\n", *((uint32_t*)buffer));
   check_valid_address(buffer);
   lock_acquire(&lock_filesys);
   if (fd == 0) 
   {
-    // for (i = 0; i < (long long int)size; i ++) 
-    //   if (((char *)buffer)[i] == '\0') break;
     i = input_getc();
   } 
   else if (fd > 2) 
@@ -314,7 +342,7 @@ int
 write (int fd, const void *buffer, unsigned size)
 {
   int v=-1;
-  // printf(">>FD: %d, size: %d\n", fd, size);
+  // printf(">>Write with FD: %d, at buffer %x, size: %d\n", fd, buffer, size);
   check_valid_address(buffer);
   lock_acquire(&lock_filesys);
   if ( fd == 1 )
@@ -393,7 +421,7 @@ mmap (int fd, void* addr)
   if(addr==NULL || !is_user_vaddr(addr) || pg_ofs(addr) != 0)
     return -1;
 
-  // printf(">> B Flag...\n");
+  if( fd <= 1)  return -1;
   
   lock_acquire(&lock_filesys);
   // printf("fd: %d\n", fd);
@@ -419,6 +447,7 @@ mmap (int fd, void* addr)
   if(entry != NULL)
   {
     lock_release(&lock_filesys);
+    file_close(f);
     return -1;
   }
 
@@ -428,7 +457,9 @@ mmap (int fd, void* addr)
   {
     size_t read_bytes = ((size_t) ofs + PGSIZE < size) ? PGSIZE : size - ofs;
     size_t zero_bytes = PGSIZE - read_bytes;
-    struct spte* s= spte_file_create(addr + ofs, f, ofs, read_bytes, zero_bytes, true);
+    // printf("spte_file_create addr: %x", addr);
+    // printf("spte_file_create ofs: %x", ofs);
+    struct spte* s= spte_file_create(addr + ofs, f, ofs, read_bytes, zero_bytes, true, true);
     if(s==NULL) break;
     //printf(" writable : %d\n",s->writable);
     hash_insert(cur->s_page_table, &s->elem);
@@ -464,6 +495,7 @@ mmap (int fd, void* addr)
   // printf(">>MMAP List insert\n");
   list_push_back(&cur->mmap_list,&new_mmap_file->elem);
   lock_release(&lock_filesys);
+  
   return new_mmap_file->mapid;
 }
 
@@ -471,11 +503,10 @@ mmap (int fd, void* addr)
 void
 munmap(mapid_t mapping)
 {
-  lock_acquire(&lock_filesys);
   // printf(">>> UNMAP??\n");
   struct thread* cur = thread_current();
-  struct mmap_file* mf;
-  struct mmap_file* temp_mmap_file = NULL;
+  struct mmap_file* mf = NULL;
+  struct mmap_file* temp_mmap_file;
   struct list_elem* e;
   for ( e = list_begin(&cur->mmap_list) ; e != list_end(&cur->mmap_list) ; e = list_next(e))
   {
@@ -487,39 +518,88 @@ munmap(mapid_t mapping)
     }
   }
   // If there is no mmap_file with mapid mapping
-  if ( temp_mmap_file == NULL)
-  {
-    // printf(">> NO FILE ??????\n");
-    lock_release(&lock_filesys);
-    exit(-1);
-  }
-  
+  if ( mf == NULL)  return;
+  munmap_file(mf);
+}
+
+void
+munmap_file(struct mmap_file* mf)
+{
   // Unmap the mmap_file with mapid mapping
   off_t ofs;
   struct file* f = mf->file; 
   void* addr = mf->vaddress;
   size_t size = mf->size;
+
+  lock_acquire(&lock_filesys);
   for(ofs = 0; (size_t) ofs < size; ofs += PGSIZE)
   {
-    struct spte* s = spte_find(cur,addr+ofs);
-    //if spte is dirty, write back.
-    if(is_spte_dirty(s))
+    struct spte* spt_entry = spte_find(thread_current(),addr+ofs);
+    if ( spt_entry == NULL )  continue;
+    
+    if ( spt_entry->kaddress != NULL)
     {
-      // printf(">> THIS IS DIRTY!! \n");
-      file_write_at(f,s->kaddress,PGSIZE, ofs);
+      // if(spt_entry->dirty)
+      // {
+        file_write_at(f,spt_entry->kaddress, PGSIZE, ofs);
+      // }
+      struct frame* frame_to_remove = frame_find_with_spte(spt_entry);
+      if ( frame_to_remove != NULL)
+        frame_free(frame_to_remove);
+      pagedir_clear_page (spt_entry->pagedir, spt_entry->vaddress);
+      hash_delete(thread_current()->s_page_table, &spt_entry->elem);
+      free_spte(&spt_entry->elem, 0);
     }
-    pagedir_clear_page (s->pagedir, s->vaddress);
-    hash_delete(cur->s_page_table, &s->elem);
-    free_spte(&s->elem, 0);
+    else if ( spt_entry->type == PAGE_SWAP )
+    {
+      if(spt_entry->dirty)
+      {
+        void *kpage = palloc_get_page (0);
+        swap_in (spt_entry->swap_idx, kpage);
+        file_write_at (f, spt_entry->kaddress, PGSIZE, ofs);
+        palloc_free_page (kpage);
+      }
+      else
+      {
+        swap_free(spt_entry->swap_idx);
+      }
+    }
+    //if spte is dirty, write back.
   }
-
   list_remove(&mf->elem);
   free(mf);
   file_close(f);
-  
   lock_release(&lock_filesys);
-  return;
+}
+
+off_t
+mmap_write_back (struct file *f, void *kaddr, off_t ofs)
+{
+  lock_acquire (&lock_filesys);
+  f = file_reopen (f);
+  if (f == NULL) return -1;
+  off_t byte = file_write_at (f, kaddr, PGSIZE, ofs);
+  lock_release (&lock_filesys);
+  return byte;
 }
 
 
 /* <-- Project3 : VM mmap End--> */
+
+static int
+get_user (const uint8_t *vaddr)
+{
+  int result;
+  asm ("movl $1f, %0; movzbl %1, %0; 1:"
+  : "=&a" (result) : "m" (*vaddr));
+  return result;
+}
+
+static bool
+put_user (uint8_t *vaddr, uint8_t byte)
+{
+  int error_code;
+  asm ("movl $1f, %0; movb %b2, %1; 1:"
+  : "=&a" (error_code), "=m" (*vaddr) : "q" (byte));
+  return error_code != -1;
+}

@@ -161,8 +161,7 @@ page_fault (struct intr_frame *f)
   {
     // printf("\nPage Fault - Not Present\n");
     struct spte* spt_entry = spte_find(thread_current(), pg_round_down(fault_addr));
-    void* sp = f->esp;
-    // uint32_t *sp = user ? f->esp : thread_current()->sp;
+    uint32_t *sp = user ? f->esp : thread_current()->sp;
 
     // Stack Growth
     // printf(">> sp: %x, fault_addr: %x\n", sp, fault_addr);
@@ -171,7 +170,7 @@ page_fault (struct intr_frame *f)
       spt_entry == NULL &&
       fault_addr >= (PHYS_BASE-0x800000) &&
       fault_addr < PHYS_BASE &&
-      fault_addr >= (sp-32)
+      fault_addr >= sp-32
     )
     {
       // printf(">> Stack Growth, tid, fa, va: %x, %x, %x\n",
@@ -184,6 +183,7 @@ page_fault (struct intr_frame *f)
       new_spt_entry->writable = true;
       new_spt_entry->dirty = false;
       new_spt_entry->present = false;
+      new_spt_entry->mmap = false;
       // thread_current()->sp -= PGSIZE;
 
       hash_insert(thread_current()->s_page_table, &new_spt_entry->elem);

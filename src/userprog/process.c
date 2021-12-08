@@ -216,6 +216,7 @@ process_exit (void)
   
   while(cur->fd_count>2) file_close(cur->fd[cur->fd_count--]); // close all files in process.
 
+  /* <--  Project 3 : VM mmap Start --> */
   struct list_elem *e;
   mapid_t mapid;
   while(!list_empty(&cur->mmap_list))
@@ -224,7 +225,7 @@ process_exit (void)
     mapid = list_entry (e, struct mmap_file, elem)->mapid;
     munmap(mapid);
   }
-
+  /* <--  Project 3 : VM mmap End --> */
   
   /* <--  Project 3 : VM S-Page Table Start --> */
   if ( cur->s_page_table != NULL )
