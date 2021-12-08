@@ -8,6 +8,7 @@
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
+#include "threads/pte.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 #include "userprog/syscall.h"
@@ -37,6 +38,7 @@ spte_file_create(
   if ( new_spte == NULL ) return NULL;
   
   new_spte->vaddress=pg_round_down(vaddress);
+  new_spte->kaddress=NULL;
   // printf(">> New spt_entry->vaddress: %x\n", new_spte->vaddress);
   new_spte->type=PAGE_FILE;
   new_spte->file=file;
@@ -184,7 +186,6 @@ void update_spte_dirty(struct spte* spt_entry)
     || pagedir_is_dirty (spt_entry->pagedir, spt_entry->kaddress);
 
 }
-
 
 static bool
 install_page (void *upage, void *kpage, bool writable)

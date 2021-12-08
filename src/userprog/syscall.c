@@ -317,7 +317,7 @@ read (int fd, void *buffer, unsigned size)
   int i = -1;
   // printf("in buffer: %x\n", *((uint32_t*)buffer));
   check_valid_address(buffer);
-  lock_acquire(&lock_filesys);
+  //lock_acquire(&lock_filesys);
   if (fd == 0) 
   {
     i = input_getc();
@@ -328,7 +328,7 @@ read (int fd, void *buffer, unsigned size)
     check_file_descriptor(cur->fd[fd]);
     i = file_read(cur->fd[fd], buffer, size);
   }
-  lock_release(&lock_filesys);
+  //lock_release(&lock_filesys);
   return i;
 }
 
@@ -338,7 +338,7 @@ write (int fd, const void *buffer, unsigned size)
   int v=-1;
   // printf(">>Write with FD: %d, at buffer %x, size: %d\n", fd, buffer, size);
   check_valid_address(buffer);
-  lock_acquire(&lock_filesys);
+  
   if ( fd == 1 )
   {
     putbuf(buffer, size);
@@ -346,11 +346,12 @@ write (int fd, const void *buffer, unsigned size)
   }
   else if( fd > 2 )
   {
+    lock_acquire(&lock_filesys);
     struct thread *cur = thread_current();
     check_file_descriptor(cur->fd[fd]);
     v = file_write(cur->fd[fd], buffer, size);
+    lock_release(&lock_filesys);
   }
-  lock_release(&lock_filesys);
   return v;
 }
 
@@ -533,11 +534,12 @@ munmap_file(struct mmap_file* mf)
     // printf("ofs: %d\n", ofs);
     if ( spt_entry->kaddress != NULL)
     {
-      // printf("Flag A\n");
-      // if(spt_entry->dirty)
-      // {
-      file_write_at(f,spt_entry->kaddress, PGSIZE, ofs);
-      // }
+      //printf("Flag A\n");
+      update_spte_dirty(spt_entry);
+      if(spt_entry->dirty)
+      {
+        file_write_at(f,spt_entry->kaddress, PGSIZE, ofs);
+      }
       struct frame* frame_to_remove = frame_find_with_spte(spt_entry);
       if ( frame_to_remove != NULL){
         frame_free(frame_to_remove);
