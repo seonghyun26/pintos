@@ -218,12 +218,10 @@ process_exit (void)
 
   /* <--  Project 3 : VM mmap Start --> */
   struct list_elem *e;
-  mapid_t mapid;
   while(!list_empty(&cur->mmap_list))
   {
     e = list_front(&cur->mmap_list);
-    mapid = list_entry (e, struct mmap_file, elem)->mapid;
-    munmap(mapid);
+    munmap_file(list_entry (e, struct mmap_file, elem));
   }
   /* <--  Project 3 : VM mmap End --> */
   

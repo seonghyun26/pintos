@@ -86,7 +86,8 @@ syscall_handler (struct intr_frame *f)
     case SYS_READ:    //8
       get_argument(sp , arg , 3);
       // printf("\n--READ FLAG start--\n");
-      check_valid_buffer_read((void*)arg[1],(unsigned)arg[2]);
+      check_valid_buffer_read((void *)arg[1],(unsigned)arg[2]);
+      check_valid_buffer_write((void*)arg[1],(unsigned)arg[2]);
       // printf("\n--READ FLAG end--\n");
       f->eax = read(
         (int)arg[0],
@@ -97,7 +98,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_WRITE:   //9
       get_argument(sp , arg , 3);
       // printf("\n--WRITE FLAG start--\n");
-      check_valid_buffer_write((void *)arg[1],(unsigned)arg[2]);
+      check_valid_buffer_read((void *)arg[1],(unsigned)arg[2]);
       // printf("\n--WRITE FLAG end--\n");
       f -> eax = write(
         (int)arg[0],
@@ -149,22 +150,15 @@ struct spte* check_valid_address(const void* addr)
 void check_valid_buffer_read(void* buffer, unsigned size)
 {
   void* tmp = pg_round_down(buffer);
-  // printf(">> Checking Buffer... \n");
   for(; tmp < buffer + size; tmp += PGSIZE)
   {
     if (get_user(tmp) == -1)
     {
       exit(-1);
     }
-    
     struct spte* s = check_valid_address(tmp);
-    // printf(">>valid buffer address : %x\n", tmp);
-    // // printf(">>valid buffer address : %d\n", *(uint32_t*)tmp);
     if(s == NULL) exit(-1);
-    // // printf(" >> write && !s->writable: %d, %d\n",write, !s->writable);
-    if(write && !s->writable) exit(-1);
   }
-  // printf(">> Checking Buffer Done!... \n\n");
 }
 
 void check_valid_buffer_write(void* buffer, unsigned size)
@@ -429,6 +423,7 @@ mmap (int fd, void* addr)
   if( f == NULL || !(f = file_reopen(f))) 
   {
     lock_release(&lock_filesys);
+    file_close(f);
     return -1;
   }
   // printf(">> C Flag...\n");
@@ -458,7 +453,6 @@ mmap (int fd, void* addr)
     size_t read_bytes = ((size_t) ofs + PGSIZE < size) ? PGSIZE : size - ofs;
     size_t zero_bytes = PGSIZE - read_bytes;
     // printf("spte_file_create addr: %x", addr);
-    // printf("spte_file_create ofs: %x", ofs);
     struct spte* s= spte_file_create(addr + ofs, f, ofs, read_bytes, zero_bytes, true, true);
     if(s==NULL) break;
     //printf(" writable : %d\n",s->writable);
@@ -536,17 +530,19 @@ munmap_file(struct mmap_file* mf)
   {
     struct spte* spt_entry = spte_find(thread_current(),addr+ofs);
     if ( spt_entry == NULL )  continue;
-    
+    // printf("ofs: %d\n", ofs);
     if ( spt_entry->kaddress != NULL)
     {
+      // printf("Flag A\n");
       // if(spt_entry->dirty)
       // {
-        file_write_at(f,spt_entry->kaddress, PGSIZE, ofs);
+      file_write_at(f,spt_entry->kaddress, PGSIZE, ofs);
       // }
       struct frame* frame_to_remove = frame_find_with_spte(spt_entry);
-      if ( frame_to_remove != NULL)
+      if ( frame_to_remove != NULL){
         frame_free(frame_to_remove);
-      pagedir_clear_page (spt_entry->pagedir, spt_entry->vaddress);
+        pagedir_clear_page (spt_entry->pagedir, spt_entry->vaddress);
+      }
       hash_delete(thread_current()->s_page_table, &spt_entry->elem);
       free_spte(&spt_entry->elem, 0);
     }
