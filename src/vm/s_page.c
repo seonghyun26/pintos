@@ -15,6 +15,7 @@
 #include "vm/frame.h"
 #include "vm/swap.h"
 
+
 static bool install_page (void *upage, void *kpage, bool writable);
 
 struct hash*
@@ -129,6 +130,7 @@ bool
 load_s_page_table_entry(struct spte* spt_entry)
 {
   if ( spt_entry == NULL )  exit(-1); 
+
   if ( spt_entry->present == true) return false;
 
   struct frame* new_frame = frame_allocate(PAL_USER, spt_entry);
@@ -154,6 +156,8 @@ load_s_page_table_entry(struct spte* spt_entry)
       break;
     case PAGE_SWAP:
       swap_in (spt_entry->swap_idx, new_frame->kernel_virtual_address);
+      // spt_entry->swap_idx = -1;
+      // spt_etnry->
       // if (!)
       // {
       //   frame_free (new_frame);
@@ -168,9 +172,10 @@ load_s_page_table_entry(struct spte* spt_entry)
   if (!install_page (spt_entry->vaddress, new_frame->kernel_virtual_address, spt_entry->writable)) 
   {
     frame_free(new_frame);
+    // printf("asdf\n");
     exit(-1);
+    // printf("qwer\n");
   }
-
 
   spt_entry->pagedir=thread_current()->pagedir;
   pagedir_set_dirty(spt_entry->pagedir, new_frame->kernel_virtual_address, false);

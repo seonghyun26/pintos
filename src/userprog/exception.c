@@ -203,10 +203,7 @@ page_fault (struct intr_frame *f)
     }
     else
     {
-      // void* va = pagedir_get_page(thread_current()->pagedir, pg_round_down(fault_addr));
-      // struct spte* spt_entry_ = spte_find(thread_current(), pg_round_down(fault_addr));
-      // printf("Pagedir found va %x at fault addr %x\n", va, pg_round_down(fault_addr));
-
+      // printf(">> User Page Fault\n");
       // printf ("Page fault at %p: %s error %s page in %s context.\n",
       //   fault_addr,
       //   not_present ? "not present" : "rights violation",
@@ -220,17 +217,17 @@ page_fault (struct intr_frame *f)
 
   else if ( !user || is_kernel_vaddr(fault_addr))
   {
-    // printf(">>Kernel Page Fault\n");
+    // printf(">> Kernel Page Fault\n");
     exit(-1);
   }
 
   else {
-    // printf ("Page fault at %p: %s error %s page in %s context.\n",
-    //   fault_addr,
-    //   not_present ? "not present" : "rights violation",
-    //   write ? "writing" : "reading",
-    //   user ? "user" : "kernel"
-    // );
+    printf ("Page fault at %p: %s error %s page in %s context.\n",
+      fault_addr,
+      not_present ? "not present" : "rights violation",
+      write ? "writing" : "reading",
+      user ? "user" : "kernel"
+    );
     exit(-1);
   }
 

@@ -561,10 +561,11 @@ munmap_file(struct mmap_file* mf)
         file_write_at (f, spt_entry->kaddress, PGSIZE, ofs);
         palloc_free_page (kpage);
       }
-      else
-      {
-        swap_free(spt_entry->swap_idx);
-      }
+      // else
+      // {
+      //   swap_free(spt_entry->swap_idx);
+      // }
+      hash_delete(thread_current()->s_page_table, &spt_entry->elem);
       free_spte(&spt_entry->elem, 0);
       // printf("asdfqwer\n");
     }

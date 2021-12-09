@@ -36,12 +36,12 @@ swap_init()
 void 
 swap_in(size_t idx, void* va)
 {
-  // printf(">> Swap In\n");
+  // printf(">> Swap In from %x\n", va);
   lock_acquire(&swap_lock);
   if ( bitmap_test(swap_bitmap, idx) == true )
   {
     lock_release(&swap_lock);
-    printf("Available Slot\n");
+    printf("Something here...\n");
     return;
   }
 
@@ -54,7 +54,9 @@ swap_in(size_t idx, void* va)
     );
   }
 
+  // printf("bitmap_set 1 start\n");
   bitmap_set(swap_bitmap, idx, true);
+  // printf("bitmap_set 1 end\n");
   lock_release(&swap_lock);
 
   // printf(">> Swap In Complete\n");
@@ -90,7 +92,9 @@ swap_out(void* va)
   }
 
   // block_print_stats();
+  // printf("bitmap_set 2 start\n");
   bitmap_set(swap_bitmap, idx, false); 
+  // printf("bitmap_set 2 end\n");
 
   lock_release(&swap_lock);
   // printf(">> Swap Out Complete\n");
@@ -103,7 +107,9 @@ swap_free(size_t idx)
 {
   // printf(">> Swap Free\n");
   lock_acquire (&swap_lock);
+  // printf("bitmap_set 3 start\n");
   bitmap_set (swap_bitmap, idx, true);
+  // printf("bitmap_set 3 end\n");
   lock_release (&swap_lock);
   // printf(">> Swap Free Complete\n");
   

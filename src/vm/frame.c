@@ -7,6 +7,7 @@
 #include "threads/thread.h"
 #include "threads/synch.h"
 #include "threads/palloc.h"
+#include "userprog/pagedir.h"
 #include "userprog/syscall.h"
 #include <bitmap.h>
 
@@ -101,10 +102,6 @@ frame_evict (enum palloc_flags p_flag)
   struct spte* spt_entry = frame_to_remove->spte;
   size_t idx;
 
-  // hex_dump(0x81b4000, 0x81b4000, (2 * 1024 * 1024) - 10, 1);
-  // if ( frame_to_remove->kernel_virtual_address == 0x81b4000)
-  // hex_dump(0x81b8000, 0x81b8000, 200, 1);
-
   // printf("-- Evict Frame type %d from va %x\n", spt_entry->type, spt_entry->vaddress);
   switch(spt_entry->type)
   {
@@ -129,16 +126,15 @@ frame_evict (enum palloc_flags p_flag)
       if ( idx == BITMAP_ERROR )  return NULL;
       spt_entry->type = PAGE_SWAP;
       spt_entry->swap_idx = idx;
+      
       break;
     default:
-      NOT_REACHED();
       break;
   }
   frame_free(frame_to_remove);
   spt_entry->present = false;
-
+  // spt_entry->kaddress = NULL; 
   pagedir_clear_page(spt_entry->pagedir, spt_entry->vaddress);
-
 
   void* new_kernel_virtual_address = palloc_get_page(p_flag);
   return new_kernel_virtual_address;
