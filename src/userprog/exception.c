@@ -176,19 +176,22 @@ page_fault (struct intr_frame *f)
       // printf(">> Stack Growth, tid, fa, va: %x, %x, %x\n",
       //   thread_tid(), fault_addr, pg_round_down(fault_addr)
       // );
-      // printf("PGSIZE: %x\n", PGSIZE);
       struct spte* new_spt_entry = malloc(sizeof(struct spte));
-      new_spt_entry->type = PAGE_ZERO;
       new_spt_entry->vaddress = pg_round_down(fault_addr);
+      new_spt_entry->kaddress = NULL;
+      new_spt_entry->pagedir = thread_current()->pagedir;
+      new_spt_entry->type = PAGE_ZERO;
+
+      new_spt_entry->present = false;
       new_spt_entry->writable = true;
       new_spt_entry->dirty = false;
-      new_spt_entry->present = false;
+      
       new_spt_entry->mmap = false;
-      // thread_current()->sp -= PGSIZE;
-
+      
       hash_insert(thread_current()->s_page_table, &new_spt_entry->elem);
       load_s_page_table_entry(new_spt_entry);
     }
+
     // Lazy loading using s-page table
     else if (spt_entry != NULL)
     {
@@ -198,7 +201,17 @@ page_fault (struct intr_frame *f)
     }
     else
     {
-      // printf(">>User Page Fault\n");
+      // void* va = pagedir_get_page(thread_current()->pagedir, pg_round_down(fault_addr));
+      // struct spte* spt_entry_ = spte_find(thread_current(), pg_round_down(fault_addr));
+      // printf("Pagedir found va %x at fault addr %x\n", va, fault_addr);
+
+      // printf(">> User Page Fault\n");
+      // printf ("Page fault at %p: %s error %s page in %s context.\n",
+      //   fault_addr,
+      //   not_present ? "not present" : "rights violation",
+      //   write ? "writing" : "reading",
+      //   user ? "user" : "kernel"
+      // );
       exit(-1);
     }
     return;

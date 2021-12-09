@@ -41,7 +41,7 @@ frame_allocate (enum palloc_flags p_flag, struct spte* spte)
       return NULL;
     }
   }
-  // printf(">> Allocate Frame %x\n",new_kernel_virtual_address);
+  // printf(">> Allocate Frame physical %x, va: %x\n",new_kernel_virtual_address, spte->vaddress);
 
   struct frame* new_frame = malloc(sizeof(struct frame));
   if ( new_frame == NULL ){
@@ -51,11 +51,13 @@ frame_allocate (enum palloc_flags p_flag, struct spte* spte)
   new_frame->kernel_virtual_address = new_kernel_virtual_address;
   new_frame->thread = thread_current();
   new_frame->spte = spte;
+  spte->kaddress = new_kernel_virtual_address;
 
   lock_acquire(&frame_table_lock);
   list_push_back(&frame_table, &new_frame->elem);
   lock_release(&frame_table_lock);
 
+  // printf("Frame Allocated\n");
   return new_frame;
 }
 
@@ -89,10 +91,11 @@ frame_evict (enum palloc_flags p_flag)
     PANIC ( "Frame Table Empty, Nothing to Evict" );
 
   // TODO: Evict a frame by LRU policy
-  struct frame* frame_to_remove = list_entry(list_front(&frame_table), struct frame , elem);
+  struct frame* frame_to_remove = list_entry(list_begin(&frame_table), struct frame , elem);
   struct spte* spt_entry = frame_to_remove->spte;
   size_t idx;
 
+  // printf(" Evict Frame type: %d\n", spt_entry->type);
   switch(spt_entry->type)
   {
     case PAGE_FILE:
@@ -100,34 +103,35 @@ frame_evict (enum palloc_flags p_flag)
       // If file is from mmap
       if ( spt_entry->mmap )
       {
+        update_spte_dirty(spt_entry);
         if ( spt_entry->dirty )
         {
           off_t byte = mmap_write_back(spt_entry->file, frame_to_remove->kernel_virtual_address, spt_entry->ofs);
-          if ( byte == spt_entry->ofs )
-          {
-            return NULL;
-          }
+          if ( byte == spt_entry->ofs ) return NULL;
         }
       }
       break;
     case PAGE_ZERO:
+      update_spte_dirty(spt_entry);
       if (!spt_entry->dirty) break;
     case PAGE_SWAP:
       idx = swap_out (frame_to_remove->kernel_virtual_address);
-      if ( idx == BITMAP_ERROR )
-        return NULL;
+      // printf("va:%x\n", frame_to_remove->spte->vaddress);
+      if ( idx == BITMAP_ERROR )  return NULL;
       spt_entry->type = PAGE_SWAP;
       spt_entry->swap_idx = idx;
       break;
     default:
+      NOT_REACHED();
       break;
   }
   frame_free(frame_to_remove);
 
+  update_spte_dirty(spt_entry);
+
+
   void* new_kernel_virtual_address = palloc_get_page(p_flag);
   return new_kernel_virtual_address;
-
-  // return frame;
 }
 
 /*

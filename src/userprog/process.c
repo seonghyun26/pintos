@@ -568,20 +568,22 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       // 1. Create s-page table entry 
       struct spte* spt_entry = malloc(sizeof(struct spte));
       if ( spt_entry == NULL )  return false;
-      // printf("\n---C FLAG---\n");
 
       // 2. Init s-page table entry 
       spt_entry->vaddress = (uint32_t*)upage;
+      // printf("load seg spt_entry->vaddress: %x\n", spt_entry->vaddress = (uint32_t*)upage);
+      spt_entry->kaddress = NULL;
       spt_entry->type = PAGE_FILE;
+
       spt_entry->file = file;
       spt_entry->ofs = ofs;
-      
       spt_entry->read_bytes = page_read_bytes;
       spt_entry->zero_bytes = page_zero_bytes;
+
       spt_entry->access_time = 0; // TODO: spt_entry access time
-      
       spt_entry->present = false;
       spt_entry->writable = writable;
+      // printf("va %x connected to spt_entry->writable: %x\n", upage, writable);
       spt_entry->dirty = false;
       
       // 3. push s-page table entry into hash 
@@ -624,6 +626,7 @@ setup_stack (void **esp)
   // printf(">> Stack starts at %x\n", PHYS_BASE - PGSIZE);
   spt_entry->present = true;
   spt_entry->writable = true;
+  spt_entry->pagedir = thread_current()->pagedir;
   hash_insert(thread_current()->s_page_table, &spt_entry->elem);
 
 

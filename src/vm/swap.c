@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <debug.h>
 
-#define SECTORS_PER_PAGE (PGSIZE / BLOCK_SECTOR_SIZE)
+#define BLOCKS_PER_PAGE (PGSIZE / BLOCK_SECTOR_SIZE)
 
 struct block *swap_block;
 struct lock swap_lock;
@@ -21,16 +21,21 @@ swap_init()
 
   // Create a new block for swap, set size of it
   swap_block = block_get_role(BLOCK_SWAP);
-  swap_size = block_size(swap_block) / SECTORS_PER_PAGE;
+  swap_size = block_size(swap_block) / BLOCKS_PER_PAGE;
   
   // Create a bitmap with size swap_size, and set lit all true
-  struct bitmap* swap_bitmap = bitmap_create(swap_size);
+  swap_bitmap = bitmap_create(swap_size);
   bitmap_set_all(swap_bitmap, true);
+  // printf(">> Swap Init Complete\n");
 }
 
+/*
+  From Swap disk to Physcial Memory
+*/
 void 
 swap_in(size_t idx, void* va)
 {
+  printf(">> Swap In\n");
   lock_acquire(&swap_lock);
   if ( bitmap_test(swap_bitmap, idx) == true )
   {
@@ -41,7 +46,7 @@ swap_in(size_t idx, void* va)
   for ( i = 0 ; i < idx ; i++ ){
     block_read(
       swap_block,
-      i + idx * SECTORS_PER_PAGE,
+      i + idx * BLOCKS_PER_PAGE,
       va + ( i *BLOCK_SECTOR_SIZE)
     );
   }
@@ -51,10 +56,15 @@ swap_in(size_t idx, void* va)
   return;
 }
 
+/*
+  From Physcial Memory to Swap disk
+*/
 size_t
 swap_out(void* va)
 {
+  // printf(">> Swap Out\n");
   lock_acquire(&swap_lock);
+
   size_t idx = bitmap_scan(swap_bitmap, 0, 1, true);
   if(idx == BITMAP_ERROR)
   {
@@ -63,7 +73,6 @@ swap_out(void* va)
   }
 
   block_sector_t sector = BLOCK_SECTOR_SIZE * idx;
-  
   size_t i;
   for(i = 0; i < BLOCK_SECTOR_SIZE; i++)
   {
@@ -82,9 +91,11 @@ swap_out(void* va)
 void
 swap_free(size_t idx)
 {
+  // printf(">> Swap Free\n");
   lock_acquire (&swap_lock);
   bitmap_set (swap_bitmap, idx, true);
   lock_release (&swap_lock);
+  // printf(">> Swap Free Complete\n");
   
   return;
 }

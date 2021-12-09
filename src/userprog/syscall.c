@@ -317,18 +317,18 @@ read (int fd, void *buffer, unsigned size)
   int i = -1;
   // printf("in buffer: %x\n", *((uint32_t*)buffer));
   check_valid_address(buffer);
-  //lock_acquire(&lock_filesys);
   if (fd == 0) 
   {
     i = input_getc();
   } 
   else if (fd > 2) 
   {
+    lock_acquire(&lock_filesys);
     struct thread *cur = thread_current();
     check_file_descriptor(cur->fd[fd]);
     i = file_read(cur->fd[fd], buffer, size);
+    lock_release(&lock_filesys);
   }
-  //lock_release(&lock_filesys);
   return i;
 }
 
@@ -532,10 +532,10 @@ munmap_file(struct mmap_file* mf)
     struct spte* spt_entry = spte_find(thread_current(),addr+ofs);
     if ( spt_entry == NULL )  continue;
     // printf("ofs: %d\n", ofs);
+    update_spte_dirty(spt_entry);
     if ( spt_entry->kaddress != NULL)
     {
       //printf("Flag A\n");
-      update_spte_dirty(spt_entry);
       if(spt_entry->dirty)
       {
         file_write_at(f,spt_entry->kaddress, PGSIZE, ofs);

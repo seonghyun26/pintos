@@ -38,17 +38,21 @@ spte_file_create(
   if ( new_spte == NULL ) return NULL;
   
   new_spte->vaddress=pg_round_down(vaddress);
-  new_spte->kaddress=NULL;
   // printf(">> New spt_entry->vaddress: %x\n", new_spte->vaddress);
+  new_spte->kaddress=NULL;
+  new_spte->pagedir=thread_current()->pagedir;
   new_spte->type=PAGE_FILE;
+
   new_spte->file=file;
   new_spte->ofs=ofs;
   new_spte->read_bytes=read_bytes;
   new_spte->zero_bytes=zero_bytes;
-  new_spte->writable=writable;
-  new_spte->mmap=mmap;
+
   new_spte->present=false;
+  new_spte->writable=writable;
   new_spte->dirty=false;
+
+  new_spte->mmap=mmap;
 
   return new_spte;
 }
@@ -73,8 +77,6 @@ spte_find(struct thread* t, const void* va)
   struct hash_elem* e = hash_find(t->s_page_table,&s_pte->elem);
   free(s_pte);
   
-  //printf(">> ?????????: %d\n", hash_entry(e, struct spte, elem)->writable);
-
   if(e != NULL) return hash_entry(e, struct spte, elem);
   else return NULL;
 }
