@@ -131,6 +131,8 @@ syscall_handler (struct intr_frame *f)
     default:
       exit(-1);
   }
+
+  // printf("Syscall Done!!\n\n");
 }
 
 struct spte* check_valid_address(const void* addr)
@@ -467,8 +469,8 @@ mmap (int fd, void* addr)
     {
       struct spte* spte_to_free = spte_find(cur,addr+ofs);
       hash_delete(cur->s_page_table, &spte_to_free->elem);
-      free_spte(&spte_to_free->elem, 0);  
-      free(spte_to_free);
+      free_spte(&spte_to_free->elem, 0);
+      // printf("asdf\n");
     }
     lock_release(&lock_filesys);
     file_close(f);
@@ -540,6 +542,7 @@ munmap_file(struct mmap_file* mf)
       {
         file_write_at(f,spt_entry->kaddress, PGSIZE, ofs);
       }
+
       struct frame* frame_to_remove = frame_find_with_spte(spt_entry);
       if ( frame_to_remove != NULL){
         frame_free(frame_to_remove);
@@ -547,6 +550,7 @@ munmap_file(struct mmap_file* mf)
       }
       hash_delete(thread_current()->s_page_table, &spt_entry->elem);
       free_spte(&spt_entry->elem, 0);
+      // printf("qwer\n");
     }
     else if ( spt_entry->type == PAGE_SWAP )
     {
@@ -561,9 +565,11 @@ munmap_file(struct mmap_file* mf)
       {
         swap_free(spt_entry->swap_idx);
       }
+      free_spte(&spt_entry->elem, 0);
+      // printf("asdfqwer\n");
     }
-    //if spte is dirty, write back.
   }
+
   list_remove(&mf->elem);
   free(mf);
   file_close(f);

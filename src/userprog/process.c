@@ -227,7 +227,11 @@ process_exit (void)
   
   /* <--  Project 3 : VM S-Page Table Start --> */
   if ( cur->s_page_table != NULL )
+  {
+    // printf("S-page Table Destory Start\n");
     s_page_table_destroy(cur->s_page_table);
+    // printf("S-page Table Destory End\n");
+  }
   /* <--  Project 3 : VM S-Page Table End --> */
 
   /* Destroy the current process's page directory and switch back

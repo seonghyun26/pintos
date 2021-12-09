@@ -115,6 +115,7 @@ free_spte(struct hash_elem* he, void* aux UNUSED)
     swap_free(entry->swap_idx);
   }
   free(entry);
+  // printf("free complete\n");
 }
 
 
@@ -133,7 +134,7 @@ load_s_page_table_entry(struct spte* spt_entry)
   struct frame* new_frame = frame_allocate(PAL_USER, spt_entry);
   //struct file* new_file = spt_entry->file;
 
-  // printf(">> spt_entry->type: %d\n", spt_entry->type);
+  // printf("\n>> Loading spt_entry->type: %d\n", spt_entry->type);
   switch(spt_entry->type)
   {
     case PAGE_FILE:

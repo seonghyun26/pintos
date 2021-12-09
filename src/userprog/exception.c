@@ -152,6 +152,7 @@ page_fault (struct intr_frame *f)
   page_fault_cnt++;
 
   /* Determine cause. */
+  // printf("f error code: %d\n", f->error_code);
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
@@ -195,17 +196,17 @@ page_fault (struct intr_frame *f)
     // Lazy loading using s-page table
     else if (spt_entry != NULL)
     {
-      // printf(">> Lazy loading \n");
+      // printf(">> Lazy loading on %x\n", pg_round_down(fault_addr));
       load_s_page_table_entry(spt_entry);
+      // printf("va, ka %x, %x\n\n", spt_entry->vaddress, spt_entry->kaddress);
       // printf(">> Lazy loading done\n");
     }
     else
     {
       // void* va = pagedir_get_page(thread_current()->pagedir, pg_round_down(fault_addr));
       // struct spte* spt_entry_ = spte_find(thread_current(), pg_round_down(fault_addr));
-      // printf("Pagedir found va %x at fault addr %x\n", va, fault_addr);
+      // printf("Pagedir found va %x at fault addr %x\n", va, pg_round_down(fault_addr));
 
-      // printf(">> User Page Fault\n");
       // printf ("Page fault at %p: %s error %s page in %s context.\n",
       //   fault_addr,
       //   not_present ? "not present" : "rights violation",
@@ -224,12 +225,12 @@ page_fault (struct intr_frame *f)
   }
 
   else {
-    printf ("Page fault at %p: %s error %s page in %s context.\n",
-      fault_addr,
-      not_present ? "not present" : "rights violation",
-      write ? "writing" : "reading",
-      user ? "user" : "kernel"
-    );
+    // printf ("Page fault at %p: %s error %s page in %s context.\n",
+    //   fault_addr,
+    //   not_present ? "not present" : "rights violation",
+    //   write ? "writing" : "reading",
+    //   user ? "user" : "kernel"
+    // );
     exit(-1);
   }
 

@@ -37,17 +37,22 @@ frame_allocate (enum palloc_flags p_flag, struct spte* spte)
   {
     new_kernel_virtual_address = frame_evict(p_flag);
     if ( new_kernel_virtual_address == NULL )  {
-      palloc_free_page(new_kernel_virtual_address);
+      // palloc_free_page(new_kernel_virtual_address);
       return NULL;
     }
+    else {
+      // printf(">> Frame allocated by evict at physical %x, va: %x\n", new_kernel_virtual_address, spte->vaddress);
+    }
+    // pagedir_clear_page(spte->pagedir, spte->vaddress);
   }
-  // printf(">> Allocate Frame physical %x, va: %x\n",new_kernel_virtual_address, spte->vaddress);
+  // else printf(">> Frame allocated at physical %x, va: %x\n",new_kernel_virtual_address, spte->vaddress);
 
   struct frame* new_frame = malloc(sizeof(struct frame));
   if ( new_frame == NULL ){
     palloc_free_page(new_kernel_virtual_address);
     return NULL;
   }
+
   new_frame->kernel_virtual_address = new_kernel_virtual_address;
   new_frame->thread = thread_current();
   new_frame->spte = spte;
@@ -57,6 +62,7 @@ frame_allocate (enum palloc_flags p_flag, struct spte* spte)
   list_push_back(&frame_table, &new_frame->elem);
   lock_release(&frame_table_lock);
 
+  // hex_dump(0x81b8000, 0x81b8000, 1000, 1);
   // printf("Frame Allocated\n");
   return new_frame;
 }
@@ -95,7 +101,11 @@ frame_evict (enum palloc_flags p_flag)
   struct spte* spt_entry = frame_to_remove->spte;
   size_t idx;
 
-  // printf(" Evict Frame type: %d\n", spt_entry->type);
+  // hex_dump(0x81b4000, 0x81b4000, (2 * 1024 * 1024) - 10, 1);
+  // if ( frame_to_remove->kernel_virtual_address == 0x81b4000)
+  // hex_dump(0x81b8000, 0x81b8000, 200, 1);
+
+  // printf("-- Evict Frame type %d from va %x\n", spt_entry->type, spt_entry->vaddress);
   switch(spt_entry->type)
   {
     case PAGE_FILE:
@@ -109,14 +119,13 @@ frame_evict (enum palloc_flags p_flag)
           off_t byte = mmap_write_back(spt_entry->file, frame_to_remove->kernel_virtual_address, spt_entry->ofs);
           if ( byte == spt_entry->ofs ) return NULL;
         }
+        else break;
       }
-      break;
     case PAGE_ZERO:
       update_spte_dirty(spt_entry);
       if (!spt_entry->dirty) break;
     case PAGE_SWAP:
       idx = swap_out (frame_to_remove->kernel_virtual_address);
-      // printf("va:%x\n", frame_to_remove->spte->vaddress);
       if ( idx == BITMAP_ERROR )  return NULL;
       spt_entry->type = PAGE_SWAP;
       spt_entry->swap_idx = idx;
@@ -126,8 +135,9 @@ frame_evict (enum palloc_flags p_flag)
       break;
   }
   frame_free(frame_to_remove);
+  spt_entry->present = false;
 
-  update_spte_dirty(spt_entry);
+  pagedir_clear_page(spt_entry->pagedir, spt_entry->vaddress);
 
 
   void* new_kernel_virtual_address = palloc_get_page(p_flag);
